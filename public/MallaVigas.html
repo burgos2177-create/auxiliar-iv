@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Malla de Trabes · NTC-2023</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Familjen+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#f5f2eb;--ink:#1a1612;--muted:#7a7060;--border:#d6cfbe;
+  --card:#fff;--acc:#c8401a;--acc2:#1a5c8a;--ok:#2d7a3a;--warn:#c8401a;
+  --mono:'DM Mono',monospace;--sans:'Familjen Grotesk',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+  min-height:100vh;
+  background-image:linear-gradient(rgba(26,22,18,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(26,22,18,.04) 1px,transparent 1px);
+  background-size:28px 28px;}
+
+/* ── HEADER ── */
+header{
+  background:var(--ink);border-bottom:3px solid var(--acc);
+  padding:0 28px;display:flex;align-items:center;justify-content:space-between;
+  height:48px;position:sticky;top:0;z-index:200;gap:16px;
+}
+.h-logo{display:flex;align-items:center;gap:10px;}
+.h-mark{width:30px;height:30px;border-radius:3px;background:var(--acc);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.h-title{font-size:13px;font-weight:800;color:#fff;letter-spacing:-.01em;}
+.h-sub{font-size:10px;color:#7a7060;font-family:var(--mono);margin-top:1px;}
+.h-actions{display:flex;align-items:center;gap:8px;}
+.btn{font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+  padding:6px 13px;border-radius:5px;border:1.5px solid;cursor:pointer;transition:all .15s;}
+.btn-ghost{border-color:rgba(255,255,255,.2);background:transparent;color:#ccc;}
+.btn-ghost:hover{border-color:var(--acc);color:var(--acc);}
+.btn-acc{border-color:var(--acc);background:var(--acc);color:#fff;font-weight:700;}
+.btn-acc:hover{background:#a83214;}
+.btn-b{border-color:var(--acc2);background:var(--acc2);color:#fff;font-weight:700;}
+.btn-b:hover{background:#143f5e;}
+.btn-plain{border-color:var(--border);background:var(--card);color:var(--muted);}
+.btn-plain:hover{border-color:var(--ink);color:var(--ink);}
+
+/* ── BUSCADOR ── */
+.finder{background:var(--ink);border-bottom:1px solid #2a2520;padding:14px 28px;}
+.finder-inner{max-width:960px;margin:0 auto;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;}
+.f-field{display:flex;flex-direction:column;gap:4px;}
+.f-label{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#7a7060;}
+.f-input{background:#1e1a14;border:1.5px solid #3a3528;border-radius:5px;
+  padding:8px 12px;color:#fff;font-family:var(--mono);font-size:14px;
+  font-weight:500;width:120px;outline:none;transition:border-color .15s;}
+.f-input:focus{border-color:var(--acc);}
+.f-input::placeholder{color:#4a4438;}
+.f-btn{background:var(--acc);color:#fff;border:none;border-radius:5px;
+  padding:8px 20px;font-family:var(--mono);font-size:11px;font-weight:700;
+  cursor:pointer;letter-spacing:.06em;transition:background .15s;white-space:nowrap;}
+.f-btn:hover{background:#a83214;}
+.f-result{flex:1;min-width:200px;border-radius:5px;padding:8px 14px;
+  font-family:var(--mono);font-size:11px;display:none;line-height:1.6;}
+.f-result.show{display:block;}
+.fr-ok{background:rgba(45,122,58,.15);border:1px solid rgba(45,122,58,.35);color:#6ef08a;}
+.fr-no{background:rgba(200,64,26,.15);border:1px solid rgba(200,64,26,.35);color:#ff9070;}
+
+/* ── MAIN LAYOUT ── */
+.main{max-width:1400px;margin:0 auto;padding:24px 28px 60px;display:flex;flex-direction:column;gap:22px;}
+
+/* ── STATS ROW ── */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+.stat{background:var(--card);border:1.5px solid var(--border);border-radius:6px;padding:13px 15px;}
+.stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin-bottom:3px;}
+.stat-v{font-size:20px;font-weight:800;font-family:var(--mono);line-height:1;}
+.stat-s{font-size:10px;color:var(--muted);margin-top:2px;font-family:var(--mono);}
+
+/* ── HEATMAP ── */
+.heatmap-card{background:var(--card);border:1.5px solid var(--border);border-radius:8px;padding:20px 24px;}
+.hm-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.hm-title{font-size:12px;font-weight:700;color:var(--ink);letter-spacing:-.01em;}
+.hm-sub{font-size:10px;color:var(--muted);margin-top:2px;font-family:var(--mono);}
+.hm-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.hm-wrap{overflow:auto;cursor:crosshair;}
+canvas{display:block;}
+.hm-legend{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap;}
+.legend-grad{width:140px;height:10px;border-radius:3px;}
+.legend-label{font-family:var(--mono);font-size:9px;color:var(--muted);}
+.hm-chip{font-family:var(--mono);font-size:9px;padding:3px 9px;border-radius:20px;
+  border:1.5px solid var(--border);cursor:pointer;transition:all .15s;background:transparent;color:var(--muted);}
+.hm-chip.active{background:rgba(200,64,26,.1);border-color:var(--acc);color:var(--acc);}
+
+/* ── Filtros heatmap ── */
+.hm-filter-bar{
+  display:flex;align-items:flex-start;gap:16px;margin-top:14px;
+  padding:12px 16px;background:#faf8f4;border-radius:6px;
+  border:1.5px solid var(--border);flex-wrap:wrap;
+}
+.hm-filter-group{display:flex;flex-direction:column;gap:6px;}
+.hm-filter-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  letter-spacing:.12em;color:var(--muted);font-weight:600;}
+.hm-filter-chips{display:flex;flex-wrap:wrap;gap:4px;}
+.hm-sec-chip{
+  font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:4px;
+  border:1.5px solid;cursor:pointer;transition:all .12s;
+  background:transparent;white-space:nowrap;font-weight:600;
+}
+.hm-sec-chip.dimmed{opacity:.22;filter:grayscale(.6);}
+.hm-sec-chip.all-btn{
+  border-color:var(--border);color:var(--muted);background:var(--card);
+  font-weight:700;letter-spacing:.04em;
+}
+.hm-sec-chip.all-btn.active-all{
+  border-color:var(--ink);color:var(--ink);background:rgba(26,22,18,.06);
+}
+
+/* ── TOOLTIP ── */
+#tooltip{
+  position:fixed;z-index:9999;pointer-events:none;
+  background:#1a1612;border:1px solid rgba(200,64,26,.4);border-radius:8px;
+  padding:10px 14px;min-width:230px;display:none;
+  box-shadow:0 8px 32px rgba(0,0,0,.3);
+}
+#tooltip.show{display:block;}
+.tt-row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #2a2520;font-size:11px;}
+.tt-row:last-child{border-bottom:none;}
+.tt-l{color:#7a7060;}
+.tt-v{font-family:var(--mono);font-weight:700;color:#e2e8f0;}
+.tt-header{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--acc);
+  margin-bottom:6px;font-family:var(--mono);}
+
+/* ── TABLE ── */
+.tbl-card{background:var(--card);border:1.5px solid var(--border);border-radius:8px;overflow:hidden;}
+.tbl-head{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1.5px solid var(--border);background:#faf8f4;flex-wrap:wrap;gap:8px;}
+.tbl-title{font-size:11px;font-weight:700;color:var(--ink);}
+.tbl-filter{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.tf-input{background:var(--bg);border:1px solid var(--border);border-radius:4px;
+  padding:4px 9px;font-family:var(--mono);font-size:11px;color:var(--ink);outline:none;width:110px;}
+.tf-input:focus{border-color:var(--acc);}
+.tbl-wrap{overflow-x:auto;max-height:420px;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;min-width:820px;}
+thead th{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--muted);padding:10px 13px;border-bottom:1.5px solid var(--border);
+  text-align:left;background:#faf8f4;cursor:pointer;white-space:nowrap;position:sticky;top:0;}
+thead th:hover{color:var(--ink);}
+tbody tr{border-bottom:1px solid #f0ece3;cursor:pointer;transition:background .1s;}
+tbody tr:hover{background:#faf8f4;}
+tbody tr.highlight-row{background:#fff8e1;outline:2px solid var(--acc);outline-offset:-2px;}
+tbody td{padding:9px 13px;font-size:11px;vertical-align:middle;}
+.mono{font-family:var(--mono);font-size:11px;}
+.sec-tag{font-family:var(--mono);font-size:10px;font-weight:700;
+  padding:2px 7px;border-radius:3px;background:rgba(200,64,26,.08);
+  color:var(--acc);border:1px solid rgba(200,64,26,.2);}
+.ac-tag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;
+  background:#f5f2eb;border:1px solid var(--border);border-radius:3px;padding:2px 6px;white-space:nowrap;}
+.adot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+
+/* ratio */
+.ratio-wrap{display:flex;align-items:center;gap:6px;min-width:80px;}
+.ratio-track{flex:1;height:6px;background:#ece8df;border-radius:3px;overflow:hidden;}
+.ratio-fill{height:100%;border-radius:3px;}
+.ratio-num{font-family:var(--mono);font-size:11px;font-weight:700;min-width:36px;}
+
+/* asym bar */
+.mu-pair{display:flex;flex-direction:column;gap:2px;}
+.mu-bw{display:flex;align-items:center;gap:4px;}
+.mu-bt{flex:1;height:4px;background:#ece8df;border-radius:2px;overflow:hidden;}
+.mu-bf{height:100%;border-radius:2px;}
+.mu-l{font-family:var(--mono);font-size:9px;width:8px;flex-shrink:0;}
+.mu-n{font-family:var(--mono);font-size:10px;font-weight:700;min-width:30px;text-align:right;}
+
+/* ── LOAD ZONE ── */
+.load-zone{
+  border:2px dashed var(--border);border-radius:8px;
+  padding:40px;text-align:center;transition:all .2s;cursor:pointer;
+  background:var(--card);
+}
+.load-zone:hover,.load-zone.drag{border-color:var(--acc);background:rgba(200,64,26,.03);}
+.load-zone h3{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.load-zone p{font-size:11px;color:var(--muted);font-family:var(--mono);}
+
+/* ── Restrictor en finder ── */
+.f-sep{width:1px;height:32px;background:rgba(255,255,255,.12);flex-shrink:0;}
+.f-restric{display:flex;flex-direction:column;gap:4px;}
+.f-restric-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;color:#7a7060;}
+.f-restric-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.rc{font-family:var(--mono);font-size:10px;padding:4px 9px;border-radius:4px;
+  border:1.5px solid rgba(255,255,255,.18);background:transparent;
+  color:#9a9080;cursor:pointer;transition:all .12s;white-space:nowrap;}
+.rc:hover{border-color:rgba(255,255,255,.4);color:#e0d8cc;}
+.rc.rc-on{border-color:var(--acc);background:rgba(200,64,26,.2);
+  color:#f0a080;font-weight:700;}
+.rc.rc-b.rc-on{border-color:#7ab8d9;background:rgba(26,92,138,.2);color:#7ab8d9;}
+
+/* ── Panel de resultados de búsqueda ── */
+.search-panel{
+  display:none;background:var(--ink);
+  border-top:1px solid #2a2520;padding:10px 28px;
+}
+.search-panel.show{display:block;}
+.sp-inner{max-width:960px;margin:0 auto;}
+.sp-title{font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  letter-spacing:.14em;color:#7a7060;margin-bottom:8px;}
+.sp-cards{display:flex;gap:8px;flex-wrap:wrap;}
+.sp-card{
+  background:#1e1a14;border:1.5px solid #3a3528;border-radius:6px;
+  padding:8px 12px;cursor:pointer;transition:all .12s;min-width:170px;
+}
+.sp-card:hover{border-color:var(--acc);background:#261e16;}
+.sp-card.sp-best{border-color:#c8401a;background:rgba(200,64,26,.12);}
+.sp-card-sec{font-family:var(--mono);font-size:13px;font-weight:700;
+  color:#f0a080;margin-bottom:4px;}
+.sp-card-line{font-family:var(--mono);font-size:10px;color:#9a9080;
+  display:flex;justify-content:space-between;gap:8px;}
+.sp-card-line span{color:#e0d8cc;}
+.sp-badge{font-family:var(--mono);font-size:9px;padding:2px 7px;
+  border-radius:3px;background:rgba(200,64,26,.15);
+  color:#f0a080;border:1px solid rgba(200,64,26,.3);margin-left:6px;}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+@media(max-width:780px){
+  .stats{grid-template-columns:1fr 1fr;}
+  .main{padding:16px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-logo">
+    <div class="h-mark">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <rect x="1" y="2" width="16" height="14" rx="1.5" stroke="#fff" stroke-width="1.4" fill="none"/>
+        <circle cx="5.5" cy="6.5" r="1" fill="#fff"/>
+        <circle cx="9" cy="6.5" r="1" fill="#fff"/>
+        <circle cx="12.5" cy="6.5" r="1" fill="#fff"/>
+        <circle cx="5.5" cy="12" r="1" fill="rgba(255,255,255,.6)"/>
+        <circle cx="12.5" cy="12" r="1" fill="rgba(255,255,255,.6)"/>
+      </svg>
+    </div>
+    <div>
+      <div class="h-title">Malla de Combinaciones · NTC-2023</div>
+      <div class="h-sub">f'c=250 · fy=4200 · FR=0.9 · h ≤ 45 cm · bastones hasta 2/lecho · paso 0.25 t·m · ratio ±2.5</div>
+    </div>
+  </div>
+  <div class="h-actions">
+    <button class="btn btn-ghost" onclick="document.getElementById('file-in').click()">📂 Cargar JSON</button>
+    <button class="btn btn-b" id="btn-export" onclick="exportJSON()" style="display:none">↓ Exportar BD</button>
+    <input type="file" id="file-in" accept=".json" style="display:none" onchange="loadFile(event)"/>
+  </div>
+</header>
+
+<!-- BUSCADOR -->
+<div class="finder">
+  <div class="finder-inner">
+    <div class="f-field">
+      <span class="f-label">Mu+ (ton·m)</span>
+      <input class="f-input" id="f-muP" type="number" min="0.1" step="0.1" placeholder="ej. 8.5"/>
+    </div>
+    <div class="f-field">
+      <span class="f-label">Mu− (ton·m)</span>
+      <input class="f-input" id="f-muN" type="number" min="0.1" step="0.1" placeholder="ej. 5.2"/>
+    </div>
+    <div class="f-sep"></div>
+    <!-- Restrictor de base -->
+    <div class="f-restric">
+      <span class="f-restric-label">Restringir base b</span>
+      <div class="f-restric-chips" id="rc-b">
+        <button class="rc" data-rtype="b" data-rval="15" onclick="toggleRC(this)">15</button>
+        <button class="rc" data-rtype="b" data-rval="20" onclick="toggleRC(this)">20</button>
+        <button class="rc" data-rtype="b" data-rval="25" onclick="toggleRC(this)">25</button>
+        <button class="rc" data-rtype="b" data-rval="30" onclick="toggleRC(this)">30</button>
+        <button class="rc" data-rtype="b" data-rval="35" onclick="toggleRC(this)">35</button>
+        <button class="rc" data-rtype="b" data-rval="40" onclick="toggleRC(this)">40</button>
+        <button class="rc" data-rtype="b" data-rval="45" onclick="toggleRC(this)">45</button>
+        <button class="rc" data-rtype="b" data-rval="50" onclick="toggleRC(this)">50</button>
+      </div>
+    </div>
+    <div class="f-sep"></div>
+    <!-- Restrictor de peralte -->
+    <div class="f-restric">
+      <span class="f-restric-label">Restringir peralte h</span>
+      <div class="f-restric-chips" id="rc-h">
+        <button class="rc rc-b" data-rtype="h" data-rval="20" onclick="toggleRC(this)">20</button>
+        <button class="rc rc-b" data-rtype="h" data-rval="25" onclick="toggleRC(this)">25</button>
+        <button class="rc rc-b" data-rtype="h" data-rval="30" onclick="toggleRC(this)">30</button>
+        <button class="rc rc-b" data-rtype="h" data-rval="35" onclick="toggleRC(this)">35</button>
+        <button class="rc rc-b" data-rtype="h" data-rval="40" onclick="toggleRC(this)">40</button>
+        <button class="rc rc-b" data-rtype="h" data-rval="45" onclick="toggleRC(this)">45</button>
+
+      </div>
+    </div>
+    <div class="f-sep"></div>
+    <button class="f-btn" onclick="buscar()">⌕ Buscar</button>
+    <div class="f-result" id="f-result" style="display:none"></div>
+  </div>
+</div>
+<!-- Panel de resultados del buscador -->
+<div class="search-panel" id="search-panel">
+  <div class="sp-inner">
+    <div class="sp-title" id="sp-title"></div>
+    <div class="sp-cards" id="sp-cards"></div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- EMPTY STATE -->
+  <div id="empty-state">
+    <div class="load-zone" id="drop-zone"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="handleDrop(event)"
+      onclick="document.getElementById('file-in').click()">
+      <h3>Carga la malla de trabes</h3>
+      <p>Arrastra aquí el archivo <strong>vigas_malla.json</strong> o haz clic para seleccionarlo</p>
+      <p style="margin-top:8px;color:#aaa">También puedes usar el botón "📂 Cargar JSON" del encabezado</p>
+    </div>
+  </div>
+
+  <!-- CONTENIDO (oculto hasta cargar) -->
+  <div id="content" style="display:none;flex-direction:column;gap:22px;">
+
+    <!-- STATS -->
+    <div class="stats" id="stats-row"></div>
+
+    <!-- HEATMAP -->
+    <div class="heatmap-card">
+      <div class="hm-header">
+        <div>
+          <div class="hm-title">Mapa de calor — Sección óptima por combinación Mu+ / Mu−</div>
+          <div class="hm-sub">h ≤ 45 cm · bastones (0–2/lecho) · 7,613 combis · 27 secciones. Hover = detalle, clic = fila.</div>
+        </div>
+        <div class="hm-controls">
+          <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">Color por:</span>
+          <button class="hm-chip active" id="chip-sec" onclick="setMode('sec',this)">Sección</button>
+          <button class="hm-chip" id="chip-ratio" onclick="setMode('ratio',this)">Ratio Mu/MRT</button>
+          <button class="hm-chip" id="chip-as" onclick="setMode('as',this)">As total</button>
+        </div>
+      </div>
+      <!-- Filtros de sección -->
+      <div class="hm-filter-bar" id="hm-filter-bar">
+        <div class="hm-filter-group">
+          <div class="hm-filter-label">Ancho b (cm)</div>
+          <div class="hm-filter-chips" id="filter-b"></div>
+        </div>
+        <div class="hm-filter-group">
+          <div class="hm-filter-label">Peralte h (cm)</div>
+          <div class="hm-filter-chips" id="filter-h"></div>
+        </div>
+        <div class="hm-filter-group" style="justify-content:flex-end;margin-left:auto;align-self:center">
+          <button class="hm-sec-chip all-btn active-all" id="btn-reset-filter" onclick="resetFilter()">
+            ↺ Mostrar todas
+          </button>
+          <div id="filter-count" style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:4px;text-align:right"></div>
+        </div>
+      </div>
+      <div class="hm-wrap" id="hm-wrap" style="margin-top:14px">
+        <canvas id="heatmap"></canvas>
+      </div>
+      <div class="hm-legend" id="hm-legend"></div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <div class="tbl-title">Tabla completa de combinaciones</div>
+        <div class="tbl-filter">
+          <input class="tf-input" id="tf-sec" placeholder="Sección (ej 15x30)" oninput="filterTable()"/>
+          <input class="tf-input" id="tf-muP" placeholder="Mu+ máx" type="number" oninput="filterTable()" style="width:90px"/>
+          <input class="tf-input" id="tf-muN" placeholder="Mu− máx" type="number" oninput="filterTable()" style="width:90px"/>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead id="tbl-head"></thead><tbody id="tbl-body"></tbody></table>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- TOOLTIP -->
+<div id="tooltip">
+  <div class="tt-header" id="tt-title"></div>
+  <div id="tt-rows"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  ESTADO GLOBAL
+// ══════════════════════════════════════════════════════
+let DB = [];          // array de entradas de la malla
+let filteredDB = [];  // vista filtrada para la tabla
+let colorMode = 'sec';
+let sortKey = 'MuP', sortDir = 1;
+let activeSecs = new Set();   // vacío = todas activas
+// Restricciones del buscador (vacío = sin restricción)
+let restrictB = new Set();
+let restrictH = new Set();
+// Secciones que pasan el último buscar (para resaltado en heatmap)
+let searchPassSecs = new Set();  // vacío = no hay búsqueda activa
+
+// ══════════════════════════════════════════════════════
+//  CARGA DE ARCHIVO
+// ══════════════════════════════════════════════════════
+function loadFile(e){
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const json = JSON.parse(ev.target.result);
+      ingestJSON(json);
+    } catch(err) { alert('JSON inválido: '+err.message); }
+  };
+  r.readAsText(file);
+  e.target.value = '';
+}
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if(!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try { ingestJSON(JSON.parse(ev.target.result)); }
+    catch(err){ alert('JSON inválido: '+err.message); }
+  };
+  r.readAsText(file);
+}
+
+function ingestJSON(json){
+  // Soporta formato con {meta, vigas} y también array directo
+  const arr = Array.isArray(json) ? json : (json.vigas || json.data || json);
+  if(!Array.isArray(arr) || arr.length === 0){
+    alert('No se encontraron entradas en el JSON.');
+    return;
+  }
+  DB = arr;
+  filteredDB = [...DB];
+  document.getElementById('empty-state').style.display = 'none';
+  const c = document.getElementById('content');
+  c.style.display = 'flex';
+  document.getElementById('btn-export').style.display = 'inline-flex';
+  renderStats();
+  buildFilterUI();
+  renderHeatmap();
+  renderTable();
+  renderTableBody();
+}
+
+// ══════════════════════════════════════════════════════
+//  STATS
+// ══════════════════════════════════════════════════════
+function renderStats(){
+  const secs = new Set(DB.map(d=>`${d.b}×${d.h}`));
+  const maxMuP = Math.max(...DB.map(d=>d.MuP));
+  const avgRatio = (DB.reduce((s,d)=>s+(d.MuP/d.MRT_P),0)/DB.length).toFixed(3);
+  const maxAs = Math.max(...DB.map(d=>d.AsP+d.AsN)).toFixed(1);
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat"><div class="stat-l">Combinaciones</div><div class="stat-v" style="color:var(--acc)">${DB.length.toLocaleString()}</div><div class="stat-s">en la malla</div></div>
+    <div class="stat"><div class="stat-l">Secciones únicas</div><div class="stat-v" style="color:var(--acc)">${secs.size}</div><div class="stat-s">15×20 → 45×45 · con bastones</div></div>
+    <div class="stat"><div class="stat-l">Mu+ máximo</div><div class="stat-v" style="color:var(--acc)">${maxMuP}</div><div class="stat-s">ton·m</div></div>
+    <div class="stat"><div class="stat-l">Ratio prom Mu/MRT</div><div class="stat-v" style="color:var(--acc)">${avgRatio}</div><div class="stat-s">demanda / cap.</div></div>
+    <div class="stat"><div class="stat-l">As total máx</div><div class="stat-v" style="color:var(--acc)">${maxAs}</div><div class="stat-s">cm² (As+⊕As−)</div></div>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  HEATMAP
+// ══════════════════════════════════════════════════════
+const CELL = 7;    // px por celda (paso 0.25 → más celdas, tamaño más fino)
+let hmData = {};   // lookup: "MuP_MuN" → entry
+
+// Paleta de secciones
+const SEC_ORDER = [];
+for(const b of [15,20,25,30,35,40,45,50])
+  for(const h of [20,25,30,35,40,45,50,55,60,65,70])
+    if(h>=b) SEC_ORDER.push(`${b}×${h}`);
+
+const SEC_COLORS = {};
+// Paleta por FAMILIA de ancho — color base por b, luminosidad por h
+const BASE_COLORS = {
+  15: [200, 64,  26],   // terracota
+  20: [ 26, 92, 138],   // azul marino
+  25: [ 45,138,  60],   // verde
+  30: [138, 80, 180],   // violeta
+  35: [180,120,  20],   // ámbar
+  40: [ 20,140,160],    // turquesa
+  45: [180, 40,100],    // fucsia
+  50: [ 80,100,140],    // gris azulado
+};
+const H_LEVELS = [20,25,30,35,40,45,50,55,60,65,70];
+SEC_ORDER.forEach(s => {
+  const [b,h] = s.split('×').map(Number);
+  const [r,g,bl] = BASE_COLORS[b] || [100,100,100];
+  const hi = H_LEVELS.indexOf(h);
+  const t = hi / (H_LEVELS.length - 1);          // 0 (h bajo) → 1 (h alto)
+  // Mezclar con blanco en extremo bajo, oscurecer en extremo alto
+  const mix = (c, light) => Math.round(light ? c + (255-c)*0.55*(1-t) : c*(0.55+0.45*t));
+  SEC_COLORS[s] = `rgb(${mix(r,true)},${mix(g,true)},${mix(bl,true)})`;
+});
+
+function ratioColor(r){
+  // verde = alta demanda (eficiente), azul = holgado
+  if(r >= 0.92) return '#2d7a3a';
+  if(r >= 0.75) return '#c8831a';
+  return '#1a5c8a';
+}
+function asColor(as, max){
+  const t = as/max;
+  const r = Math.round(200*t+55), g = Math.round(100*(1-t)), b2 = Math.round(50*(1-t));
+  return `rgb(${r},${g},${b2})`;
+}
+
+function renderHeatmap(){
+  // Obtener ejes únicos ordenados
+  const muPVals = [...new Set(DB.map(d=>d.MuP))].sort((a,b)=>a-b);
+  const muNVals = [...new Set(DB.map(d=>d.MuN))].sort((a,b)=>a-b);
+
+  // Construir lookup
+  hmData = {};
+  DB.forEach(d=>{ hmData[`${d.MuP}_${d.MuN}`] = d; });
+
+  const maxAs = Math.max(...DB.map(d=>d.AsP+d.AsN));
+  window._hmMuP = muPVals;
+  window._hmMuN = muNVals;
+  window._hmMaxAs = maxAs;
+
+  // Márgenes: izq=60 (título Y + labels), sup=56 (etiquetas X rotadas + título X)
+  //           der=12, inf=16
+  const ML=60, MT=56, MR=12, MB=16;
+  const W = muPVals.length*CELL + ML + MR;
+  const H = muNVals.length*CELL + MT + MB;
+  const canvas = document.getElementById('heatmap');
+  canvas.width = W; canvas.height = H;
+  canvas.style.width  = W+'px';
+  canvas.style.height = H+'px';
+  window._hmML = ML; window._hmMT = MT;
+
+  drawHeatmap(muPVals, muNVals, maxAs);
+
+  // Tooltip — coordenadas relativas al área de datos
+  canvas.onmousemove = ev => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left - ML;
+    const my = ev.clientY - rect.top  - MT;
+    const xi = Math.floor(mx/CELL);
+    const yi = Math.floor(my/CELL);
+    if(xi<0||yi<0||xi>=muPVals.length||yi>=muNVals.length){ hideTT(); return; }
+    const muP = muPVals[xi];
+    const muN = muNVals[yi];
+    const d = hmData[`${muP}_${muN}`];
+    if(!d){ hideTT(); return; }
+    showTT(ev.clientX, ev.clientY, muP, muN, d);
+  };
+  canvas.onmouseleave = hideTT;
+
+  canvas.onclick = ev => {
+    const rect = canvas.getBoundingClientRect();
+    const xi = Math.floor((ev.clientX-rect.left-ML)/CELL);
+    const yi = Math.floor((ev.clientY-rect.top -MT)/CELL);
+    if(xi<0||yi<0||xi>=muPVals.length||yi>=muNVals.length) return;
+    highlightTableRow(muPVals[xi], muNVals[yi]);
+  };
+
+  renderLegend(maxAs);
+}
+
+function drawHeatmap(muPVals, muNVals, maxAs){
+  const canvas = document.getElementById('heatmap');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const ML = window._hmML||60, MT = window._hmMT||56;
+
+  // ── Fondo del área de datos ──
+  ctx.fillStyle = '#ece8df';
+  ctx.fillRect(ML, MT, muPVals.length*CELL, muNVals.length*CELL);
+
+  // ── Celdas ──
+  const hasFilter = activeSecs.size > 0;
+  const hasSearch = searchPassSecs.size > 0;
+  muNVals.forEach((muN,yi)=>{
+    muPVals.forEach((muP,xi)=>{
+      const d = hmData[`${muP}_${muN}`];
+      if(!d) return;
+      const secKey = `${d.b}×${d.h}`;
+      const isActive = !hasFilter || activeSecs.has(secKey);
+      if(!isActive){
+        ctx.fillStyle = 'rgba(200,195,185,0.28)';
+        ctx.fillRect(ML+xi*CELL, MT+yi*CELL, CELL-1, CELL-1);
+        return;
+      }
+      // Color de la celda
+      if(colorMode==='sec')        ctx.fillStyle = SEC_COLORS[secKey] || '#aaa';
+      else if(colorMode==='ratio') ctx.fillStyle = ratioColor(d.MuP/d.MRT_P);
+      else                         ctx.fillStyle = asColor(d.AsP+d.AsN, maxAs);
+      ctx.fillRect(ML+xi*CELL, MT+yi*CELL, CELL-1, CELL-1);
+    });
+  });
+
+  // ── Líneas de guía cada 2 t·m ──
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 0.5;
+  muPVals.forEach((v,i)=>{
+    if(Math.round(v*4)%8===0){
+      ctx.beginPath();
+      ctx.moveTo(ML+i*CELL, MT);
+      ctx.lineTo(ML+i*CELL, MT+muNVals.length*CELL);
+      ctx.stroke();
+    }
+  });
+  muNVals.forEach((v,i)=>{
+    if(Math.round(v*4)%8===0){
+      ctx.beginPath();
+      ctx.moveTo(ML, MT+i*CELL);
+      ctx.lineTo(ML+muPVals.length*CELL, MT+i*CELL);
+      ctx.stroke();
+    }
+  });
+
+  // ── Eje Y — labels Mu− (izquierda) ──
+  ctx.font = 'bold 9px DM Mono, monospace';
+  ctx.fillStyle = '#1a5c8a';
+  ctx.textAlign = 'right';
+  muNVals.forEach((v,i)=>{
+    if(Math.round(v*4)%8===0){
+      ctx.fillText(v.toFixed(1), ML-6, MT+i*CELL+CELL*0.65);
+    }
+  });
+
+  // Título eje Y — rotado
+  ctx.save();
+  ctx.translate(12, MT + muNVals.length*CELL/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.font = 'bold 10px Familjen Grotesk, sans-serif';
+  ctx.fillStyle = '#1a5c8a';
+  ctx.textAlign = 'center';
+  ctx.fillText('Mu− (ton·m)  →', 0, 0);
+  ctx.restore();
+
+  // Flecha Y
+  ctx.fillStyle = '#1a5c8a';
+  ctx.beginPath();
+  ctx.moveTo(ML-2, MT);
+  ctx.lineTo(ML-8, MT+8);
+  ctx.lineTo(ML+4, MT+8);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Eje X — labels Mu+ (arriba, rotados 45°) ──
+  ctx.font = 'bold 9px DM Mono, monospace';
+  ctx.fillStyle = '#c8401a';
+  muPVals.forEach((v,i)=>{
+    if(Math.round(v*4)%8===0){
+      ctx.save();
+      ctx.translate(ML+i*CELL+CELL/2, MT-8);
+      ctx.rotate(-Math.PI/4);   // −45°
+      ctx.textAlign = 'left';
+      ctx.fillText(v.toFixed(1), 0, 0);
+      ctx.restore();
+    }
+  });
+
+  // Título eje X
+  ctx.save();
+  ctx.font = 'bold 10px Familjen Grotesk, sans-serif';
+  ctx.fillStyle = '#c8401a';
+  ctx.textAlign = 'center';
+  ctx.fillText('Mu+ (ton·m)  →', ML + muPVals.length*CELL/2, 10);
+  ctx.restore();
+
+  // Flecha X
+  ctx.fillStyle = '#c8401a';
+  ctx.beginPath();
+  const xEnd = ML+muPVals.length*CELL;
+  ctx.moveTo(xEnd+2, MT);
+  ctx.lineTo(xEnd-8, MT-5);
+  ctx.lineTo(xEnd-8, MT+5);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Marco del área de datos ──
+  ctx.strokeStyle = 'rgba(26,22,18,0.15)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(ML, MT, muPVals.length*CELL, muNVals.length*CELL);
+}
+
+function setMode(mode, el){
+  colorMode = mode;
+  document.querySelectorAll('.hm-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  drawHeatmap(window._hmMuP, window._hmMuN, window._hmMaxAs);
+  renderLegend(window._hmMaxAs);
+}
+
+function renderLegend(maxAs){
+  const el = document.getElementById('hm-legend');
+  if(colorMode==='sec'){
+    const secs = [...new Set(DB.map(d=>`${d.b}×${d.h}`))].sort();
+    el.innerHTML = secs.map(s=>`
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="width:10px;height:10px;border-radius:2px;background:${SEC_COLORS[s]||'#aaa'};display:inline-block;flex-shrink:0"></span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">${s}</span>
+      </div>`).join('');
+  } else if(colorMode==='ratio'){
+    el.innerHTML = `
+      <canvas class="legend-grad" id="lg-canvas" width="140" height="10"></canvas>
+      <span class="legend-label">Holgado (azul)</span>
+      <span class="legend-label" style="margin-left:auto">Eficiente (verde)</span>`;
+    const lg=document.getElementById('lg-canvas');
+    if(lg){const ctx=lg.getContext('2d');const g=ctx.createLinearGradient(0,0,140,0);
+      g.addColorStop(0,'#1a5c8a');g.addColorStop(.5,'#c8831a');g.addColorStop(1,'#2d7a3a');
+      ctx.fillStyle=g;ctx.fillRect(0,0,140,10);}
+  } else {
+    el.innerHTML = `
+      <canvas class="legend-grad" id="lg-canvas2" width="140" height="10"></canvas>
+      <span class="legend-label">As bajo</span>
+      <span class="legend-label" style="margin-left:auto">As alto (${maxAs.toFixed(0)} cm²)</span>`;
+    const lg=document.getElementById('lg-canvas2');
+    if(lg){const ctx=lg.getContext('2d');const g=ctx.createLinearGradient(0,0,140,0);
+      g.addColorStop(0,'rgb(55,50,50)');g.addColorStop(1,'rgb(255,50,0)');
+      ctx.fillStyle=g;ctx.fillRect(0,0,140,10);}
+  }
+}
+
+// ── TOOLTIP ──
+function showTT(cx, cy, muP, muN, d){
+  const tt = document.getElementById('tooltip');
+  const ratio = (muP/d.MRT_P).toFixed(4);
+  const ratN  = (muN/d.MRT_N).toFixed(4);
+  document.getElementById('tt-title').textContent = `Mu+ ${muP} / Mu− ${muN}  →  ${d.b}×${d.h} cm`;
+  const acP = d.bP ? `${d.nP}×#${d.vP} + ${d.bP[0]}×#${d.bP[1]}` : `${d.nP}×#${d.vP}`;
+  const acN = d.bN ? `${d.nN}×#${d.vN} + ${d.bN[0]}×#${d.bN[1]}` : `${d.nN}×#${d.vN}`;
+  document.getElementById('tt-rows').innerHTML = `
+    <div class="tt-row"><span class="tt-l">Sección</span><span class="tt-v">${d.b}×${d.h} cm</span></div>
+    <div class="tt-row"><span class="tt-l">Acero inf M+ (+ bastón)</span><span class="tt-v">${acP} — ${d.AsP} cm²</span></div>
+    <div class="tt-row"><span class="tt-l">MRT+</span><span class="tt-v">${d.MRT_P} t·m</span></div>
+    <div class="tt-row"><span class="tt-l">Mu+/MRT+</span><span class="tt-v" style="color:${ratioColor(+ratio)}">${ratio}</span></div>
+    <div class="tt-row"><span class="tt-l">Acero sup M− (+ bastón)</span><span class="tt-v">${acN} — ${d.AsN} cm²</span></div>
+    <div class="tt-row"><span class="tt-l">MRT−</span><span class="tt-v">${d.MRT_N} t·m</span></div>
+    <div class="tt-row"><span class="tt-l">Mu−/MRT−</span><span class="tt-v" style="color:${ratioColor(+ratN)}">${ratN}</span></div>
+    <div class="tt-row"><span class="tt-l">As total</span><span class="tt-v">${(d.AsP+d.AsN).toFixed(2)} cm²</span></div>`;
+  const sw = window.innerWidth, sh = window.innerHeight;
+  let lx = cx+16, ly = cy+16;
+  if(lx+250>sw) lx = cx-266;
+  if(ly+200>sh) ly = cy-210;
+  tt.style.left = lx+'px'; tt.style.top = ly+'px';
+  tt.classList.add('show');
+}
+function hideTT(){ document.getElementById('tooltip').classList.remove('show'); }
+
+// ══════════════════════════════════════════════════════
+//  TABLE
+// ══════════════════════════════════════════════════════
+function renderTable(){
+  document.getElementById('tbl-head').innerHTML=`<tr>
+    <th onclick="sortTable('MuP')">Mu+ ↕</th>
+    <th onclick="sortTable('MuN')">Mu− ↕</th>
+    <th onclick="sortTable('asym')">Asim. ↕</th>
+    <th onclick="sortTable('b')">Sección ↕</th>
+    <th>Acero M+</th><th>Acero M−</th>
+    <th onclick="sortTable('AsP')">As+ cm²</th>
+    <th onclick="sortTable('AsN')">As− cm²</th>
+    <th onclick="sortTable('MRT_P')">MRT+ ↕</th>
+    <th onclick="sortTable('ratioP')">Mu/MRT ↕</th>
+  </tr>`;
+}
+
+function renderTableBody(){
+  const maxMuAll = Math.max(...DB.map(d=>Math.max(d.MuP,d.MuN)));
+  document.getElementById('tbl-body').innerHTML = filteredDB.slice(0,500).map((d,i)=>{
+    const wP = ((d.MuP/maxMuAll)*80).toFixed(1);
+    const wN = ((d.MuN/maxMuAll)*80).toFixed(1);
+    const ratio = +(d.MuP/d.MRT_P).toFixed(4);
+    const rc = ratio>=.92?'#2d7a3a':ratio>=.75?'#c8831a':'#1a5c8a';
+    const asym = (d.MuP/d.MuN).toFixed(2);
+    return `<tr id="tr-${i}" onclick="highlightTableRow(${d.MuP},${d.MuN},this)">
+      <td class="mono" style="color:var(--acc);font-weight:700">${d.MuP}</td>
+      <td class="mono" style="color:var(--acc2);font-weight:700">${d.MuN}</td>
+      <td class="mono">${asym}×</td>
+      <td><span class="sec-tag">${d.b}×${d.h}</span></td>
+      <td><span class="ac-tag"><span class="adot" style="background:var(--acc)"></span>${d.nP}×#${d.vP}${d.bP?` <span style="color:var(--muted)">+${d.bP[0]}×#${d.bP[1]}</span>`:''}</span></td>
+      <td><span class="ac-tag"><span class="adot" style="background:var(--acc2)"></span>${d.nN}×#${d.vN}${d.bN?` <span style="color:var(--muted)">+${d.bN[0]}×#${d.bN[1]}</span>`:''}</span></td>
+      <td class="mono">${d.AsP}</td>
+      <td class="mono">${d.AsN}</td>
+      <td class="mono">${d.MRT_P}</td>
+      <td>
+        <div class="ratio-wrap">
+          <span class="ratio-num" style="color:${rc}">${ratio.toFixed(3)}</span>
+          <div class="ratio-track"><div class="ratio-fill" style="width:${(ratio*100).toFixed(0)}%;background:${rc}"></div></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  const n = filteredDB.length;
+  if(n>500){
+    document.getElementById('tbl-body').innerHTML += `<tr><td colspan="10" style="text-align:center;padding:14px;font-family:var(--mono);font-size:10px;color:var(--muted)">
+      Mostrando 500 de ${n.toLocaleString()} filas. Usa los filtros para acotar.</td></tr>`;
+  }
+}
+
+function sortTable(key){
+  if(sortKey===key) sortDir*=-1; else{sortKey=key;sortDir=1;}
+  filteredDB.sort((a,b)=>{
+    const av = key==='asym'?(a.MuP/a.MuN):key==='ratioP'?(a.MuP/a.MRT_P):a[key];
+    const bv = key==='asym'?(b.MuP/b.MuN):key==='ratioP'?(b.MuP/b.MRT_P):b[key];
+    return sortDir*(av-bv);
+  });
+  renderTableBody();
+}
+
+function filterTable(){
+  const sec = document.getElementById('tf-sec').value.toLowerCase().trim();
+  const maxP = parseFloat(document.getElementById('tf-muP').value)||Infinity;
+  const maxN = parseFloat(document.getElementById('tf-muN').value)||Infinity;
+  filteredDB = DB.filter(d=>{
+    const s = `${d.b}x${d.h}`.toLowerCase();
+    return (!sec || s.includes(sec.replace('×','x')))
+      && d.MuP<=maxP && d.MuN<=maxN;
+  });
+  renderTableBody();
+}
+
+function highlightTableRow(muP, muN, rowEl){
+  document.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('highlight-row'));
+  if(rowEl){ rowEl.classList.add('highlight-row'); rowEl.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  // buscar en tabla filtrada
+  const idx = filteredDB.findIndex(d=>d.MuP===muP&&d.MuN===muN);
+  if(idx>=0 && idx<500){
+    const row = document.getElementById(`tr-${idx}`);
+    if(row){ row.classList.add('highlight-row'); row.scrollIntoView({behavior:'smooth',block:'center'}); }
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  RESTRICTOR DEL BUSCADOR
+// ══════════════════════════════════════════════════════
+function toggleRC(chip){
+  const type = chip.dataset.rtype;
+  const val  = +chip.dataset.rval;
+  const set  = type==='b' ? restrictB : restrictH;
+  if(set.has(val)){ set.delete(val); chip.classList.remove('rc-on'); }
+  else            { set.add(val);    chip.classList.add('rc-on');    }
+}
+
+// ══════════════════════════════════════════════════════
+//  BUSCADOR
+// ══════════════════════════════════════════════════════
+function buscar(){
+  const MuP = parseFloat(document.getElementById('f-muP').value);
+  const MuN = parseFloat(document.getElementById('f-muN').value);
+  if(isNaN(MuP)||isNaN(MuN)||MuP<=0||MuN<=0){
+    showSearchPanel(false,'Ingresa Mu+ y Mu− mayores a 0',[]);
+    return;
+  }
+  if(!DB.length){
+    showSearchPanel(false,'Carga primero el JSON de la malla',[]);
+    return;
+  }
+
+  // Filtrar DB por restricciones de b y h
+  const dbFiltered = DB.filter(d=>{
+    const bOk = restrictB.size===0 || restrictB.has(d.b);
+    const hOk = restrictH.size===0 || restrictH.has(d.h);
+    return bOk && hOk;
+  });
+
+  // Todas las entradas cuyo MRT_P >= MuP y MRT_N >= MuN (secciones que PASAN)
+  const passing = dbFiltered.filter(x => x.MRT_P >= MuP && x.MRT_N >= MuN);
+
+  if(!passing.length){
+    const restricMsg = (restrictB.size||restrictH.size)
+      ? ' con las restricciones actuales (prueba sin restricciones)'
+      : '';
+    showSearchPanel(false,
+      `✗ Ninguna sección${restricMsg} cubre Mu+ = ${MuP} / Mu− = ${MuN} t·m`,
+      []
+    );
+    // Limpiar filtros de heatmap y tabla
+    searchPassSecs.clear();
+    applySearchFilter();
+    return;
+  }
+
+  // Agrupar por sección y quedarnos con la entrada más representativa por sección
+  // (la de menor ratio Mu/MRT → más aprovechada, o sea más eficiente)
+  const bySecMap = new Map();
+  passing.forEach(d=>{
+    const key = `${d.b}×${d.h}`;
+    const ratio = Math.max(MuP/d.MRT_P, MuN/d.MRT_N);
+    if(!bySecMap.has(key) || ratio > bySecMap.get(key).ratio){
+      bySecMap.set(key, {...d, ratio});
+    }
+  });
+
+  // Ordenar por: 1) menor As total, 2) sección más pequeña
+  const sols = [...bySecMap.values()].sort((a,b)=>{
+    const asA = a.AsP+a.AsN, asB = b.AsP+b.AsN;
+    if(Math.abs(asA-asB)>0.01) return asA-asB;
+    return (a.b*100+a.h)-(b.b*100+b.h);
+  });
+
+  // Actualizar searchPassSecs para heatmap y tabla
+  searchPassSecs = new Set(sols.map(d=>`${d.b}×${d.h}`));
+  applySearchFilter();
+
+  // Mostrar panel con tarjetas
+  const restricTxt = restrictB.size||restrictH.size
+    ? ` (b∈{${[...restrictB].join(',')}} h∈{${[...restrictH].join(',')}})`
+    : '';
+  showSearchPanel(true,
+    `${sols.length} sección${sols.length!==1?'es':''} pasan Mu+ = ${MuP} / Mu− = ${MuN} t·m${restricTxt}`,
+    sols, MuP, MuN
+  );
+}
+
+function showSearchPanel(ok, title, sols, MuP, MuN){
+  const panel = document.getElementById('search-panel');
+  const titleEl = document.getElementById('sp-title');
+  const cardsEl = document.getElementById('sp-cards');
+  titleEl.textContent = title;
+  if(!ok || !sols.length){
+    cardsEl.innerHTML = `<div style="font-family:var(--mono);font-size:12px;color:#ff9070;padding:6px 0">${title}</div>`;
+    panel.classList.add('show');
+    return;
+  }
+  // Renderizar tarjetas (max 12 para no saturar)
+  cardsEl.innerHTML = sols.slice(0,12).map((d,i)=>{
+    const rP = (MuP/d.MRT_P).toFixed(3);
+    const rN = (MuN/d.MRT_N).toFixed(3);
+    const rMax = Math.max(+rP,+rN);
+    const rCol = rMax>=0.88?'#6ef08a':rMax>=0.70?'#ffd080':'#7ab8d9';
+    return `<div class="sp-card${i===0?' sp-best':''}"
+      onclick="clickSearchCard(${d.MuP},${d.MuN},'${d.b}×${d.h}')">
+      <div class="sp-card-sec">${d.b}×${d.h} cm${i===0?'<span class="sp-badge">✓ Óptima</span>':''}</div>
+      <div class="sp-card-line"><span>M+</span><span>${d.nP}×#${d.vP}${d.bP?` +${d.bP[0]}×#${d.bP[1]}`:''} · ${d.AsP} cm²</span></div>
+      <div class="sp-card-line"><span>M−</span><span>${d.nN}×#${d.vN}${d.bN?` +${d.bN[0]}×#${d.bN[1]}`:''} · ${d.AsN} cm²</span></div>
+      <div class="sp-card-line"><span>Ratio máx</span>
+        <span style="color:${rCol};font-weight:700">${rMax.toFixed(3)}</span></div>
+      <div class="sp-card-line"><span>As total</span>
+        <span>${(d.AsP+d.AsN).toFixed(2)} cm²</span></div>
+    </div>`;
+  }).join('');
+  if(sols.length>12){
+    cardsEl.innerHTML += `<div style="font-family:var(--mono);font-size:10px;color:#7a7060;
+      padding:8px 4px;align-self:center">…y ${sols.length-12} más visibles en la tabla</div>`;
+  }
+  panel.classList.add('show');
+}
+
+function clickSearchCard(muP, muN, sec){
+  // Resaltar solo esa sección en heatmap
+  searchPassSecs = new Set([sec]);
+  applySearchFilter();
+  highlightTableRow(muP, muN);
+}
+
+function applySearchFilter(){
+  // Actualizar activeSecs del heatmap con searchPassSecs
+  // (sobreescribe el filtro manual de chips si hay búsqueda activa)
+  if(searchPassSecs.size > 0){
+    activeSecs = new Set(searchPassSecs);
+  } else {
+    // Restaurar filtro manual
+    activeSecs.clear();
+    applySecFilter();
+    return;
+  }
+  if(window._hmMuP) drawHeatmap(window._hmMuP, window._hmMuN, window._hmMaxAs);
+  updateFilterCount();
+  // Filtrar tabla
+  filteredDB = DB.filter(d=>searchPassSecs.has(`${d.b}×${d.h}`));
+  renderTableBody();
+}
+
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&document.activeElement?.classList.contains('f-input')) buscar(); });
+
+// ══════════════════════════════════════════════════════
+//  FILTROS DE SECCIÓN EN HEATMAP
+// ══════════════════════════════════════════════════════
+function buildFilterUI(){
+  const BASES = [15,20,25,30,35,40,45,50];
+  const ALTS  = [20,25,30,35,40,45,50,55,60,65,70];
+  // Solo incluir b y h que existen en la DB cargada
+  const existB = new Set(DB.map(d=>d.b));
+  const existH = new Set(DB.map(d=>d.h));
+
+  // Color base por b (misma paleta que SEC_COLORS)
+  const BASE_HEX = {
+    15:'#c8401a', 20:'#1a5c8a', 25:'#2d8a3c',
+    30:'#8a50b4', 35:'#b47814', 40:'#148ca0',
+    45:'#b4285a', 50:'#506480'
+  };
+
+  // Chips de ancho
+  const bWrap = document.getElementById('filter-b');
+  bWrap.innerHTML = '';
+  BASES.filter(b=>existB.has(b)).forEach(b=>{
+    const hex = BASE_HEX[b]||'#888';
+    const chip = document.createElement('button');
+    chip.className = 'hm-sec-chip';
+    chip.textContent = `${b} cm`;
+    chip.style.borderColor = hex;
+    chip.style.color = hex;
+    chip.dataset.filterType = 'b';
+    chip.dataset.filterVal  = b;
+    chip.onclick = ()=>toggleFilter('b', b, hex, chip);
+    bWrap.appendChild(chip);
+  });
+
+  // Chips de peralte
+  const hWrap = document.getElementById('filter-h');
+  hWrap.innerHTML = '';
+  ALTS.filter(h=>existH.has(h)).forEach(h=>{
+    const chip = document.createElement('button');
+    chip.className = 'hm-sec-chip';
+    chip.textContent = `${h} cm`;
+    chip.style.borderColor = '#7a7060';
+    chip.style.color = '#7a7060';
+    chip.dataset.filterType = 'h';
+    chip.dataset.filterVal  = h;
+    chip.onclick = ()=>toggleFilter('h', h, '#7a7060', chip);
+    hWrap.appendChild(chip);
+  });
+
+  updateFilterCount();
+}
+
+// selectedB y selectedH son conjuntos independientes;
+// activeSecs = secciones que tienen b∈selectedB Y h∈selectedH
+// Si ambos vacíos → todas activas
+let selectedB = new Set();
+let selectedH = new Set();
+
+function toggleFilter(type, val, hex, chip){
+  const sel = type==='b' ? selectedB : selectedH;
+  if(sel.has(val)){
+    sel.delete(val);
+    chip.style.background = 'transparent';
+    chip.style.color = type==='b' ? hex : '#7a7060';
+  } else {
+    sel.add(val);
+    chip.style.background = hex+'22';
+    chip.style.color = hex;
+    chip.style.borderColor = hex;
+    // Al activar b, resaltar h disponibles para ese b
+    if(type==='b') highlightCompatibleH();
+  }
+  applySecFilter();
+}
+
+function highlightCompatibleH(){
+  // Resaltar peraltes disponibles para los anchos seleccionados
+  if(selectedB.size===0){ return; }
+  const validH = new Set(DB.filter(d=>selectedB.has(d.b)).map(d=>d.h));
+  document.querySelectorAll('[data-filter-type="h"]').forEach(chip=>{
+    const h = +chip.dataset.filterVal;
+    chip.classList.toggle('dimmed', !validH.has(h));
+  });
+}
+
+function applySecFilter(){
+  // Calcular activeSecs
+  const useB = selectedB.size > 0;
+  const useH = selectedH.size > 0;
+  activeSecs.clear();
+  if(useB || useH){
+    const allSecs = [...new Set(DB.map(d=>`${d.b}×${d.h}`))];
+    allSecs.forEach(s=>{
+      const [b,h] = s.split('×').map(Number);
+      const bOk = !useB || selectedB.has(b);
+      const hOk = !useH || selectedH.has(h);
+      if(bOk && hOk) activeSecs.add(s);
+    });
+  }
+  // Actualizar apariencia chips de b
+  const BASE_HEX = {15:'#c8401a',20:'#1a5c8a',25:'#2d8a3c',30:'#8a50b4',
+    35:'#b47814',40:'#148ca0',45:'#b4285a',50:'#506480'};
+  document.querySelectorAll('[data-filter-type="b"]').forEach(chip=>{
+    const b = +chip.dataset.filterVal;
+    const hex = BASE_HEX[b]||'#888';
+    const on = selectedB.has(b);
+    chip.style.background = on ? hex+'22' : 'transparent';
+  });
+  document.getElementById('btn-reset-filter').classList.toggle(
+    'active-all', activeSecs.size===0
+  );
+  updateFilterCount();
+  // Redibujar heatmap con filtro
+  if(window._hmMuP)
+    drawHeatmap(window._hmMuP, window._hmMuN, window._hmMaxAs);
+  // Sincronizar tabla
+  syncTableFilter();
+}
+
+function syncTableFilter(){
+  // Si hay búsqueda activa de momentos, no sobrescribir con filtro de chips
+  if(searchPassSecs.size>0) return;
+  filterTable();
+}
+
+function resetFilter(){
+  selectedB.clear(); selectedH.clear(); activeSecs.clear();
+  searchPassSecs.clear();
+  document.getElementById('search-panel').classList.remove('show');
+  document.querySelectorAll('.hm-sec-chip:not(.all-btn)').forEach(chip=>{
+    chip.style.background='transparent';
+    chip.classList.remove('dimmed');
+    const type = chip.dataset.filterType;
+    chip.style.color = type==='b'
+      ? ({15:'#c8401a',20:'#1a5c8a',25:'#2d8a3c',30:'#8a50b4',
+          35:'#b47814',40:'#148ca0',45:'#b4285a',50:'#506480'}[+chip.dataset.filterVal]||'#888')
+      : '#7a7060';
+  });
+  document.getElementById('btn-reset-filter').classList.add('active-all');
+  updateFilterCount();
+  if(window._hmMuP) drawHeatmap(window._hmMuP, window._hmMuN, window._hmMaxAs);
+  filteredDB = [...DB];
+  renderTableBody();
+}
+
+function updateFilterCount(){
+  const el = document.getElementById('filter-count');
+  if(!el) return;
+  if(activeSecs.size===0){
+    el.textContent = `${[...new Set(DB.map(d=>`${d.b}×${d.h}`))].length} secciones visibles`;
+  } else {
+    el.textContent = `${activeSecs.size} sección${activeSecs.size!==1?'es':''} resaltada${activeSecs.size!==1?'s':''}`;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORTAR JSON
+// ══════════════════════════════════════════════════════
+function exportJSON(){
+  const payload = {
+    meta:{version:"2.0",norma:"NTC-2023",defaults:{r:3,fc:250,fy:4200},
+      exportado: new Date().toISOString(),
+      campos:["MuP","MuN","b","h","nP","vP","AsP","MRT_P","nN","vN","AsN","MRT_N"]},
+    vigas: DB
+  };
+  const blob = new Blob([JSON.stringify(payload,null,0)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vigas_malla_actualizada.json';
+  a.click();
+}
+
+// Auto-hide header & finder when embedded in iframe
+if (window.parent !== window) {
+  var style = document.createElement('style');
+  style.textContent = 'header, .finder { display: none !important; }';
+  document.head.appendChild(style);
+}
+
+// postMessage — comunicacion con Auxiliar IV
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'LOAD_DB') {
+    DB = e.data.payload.vigas || [];
+    filteredDB = [...DB];
+    var emptyEl = document.getElementById('empty-state');
+    var contentEl = document.getElementById('content');
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (contentEl) contentEl.style.display = 'flex';
+    var btnExp = document.getElementById('btn-export');
+    if (btnExp) btnExp.style.display = 'inline-flex';
+    renderStats();
+    buildFilterUI();
+    renderHeatmap();
+    renderTable();
+    renderTableBody();
+  }
+  if (e.data && e.data.type === 'SEARCH_FILTER') {
+    var secs = e.data.payload.sections || [];
+    searchPassSecs = new Set(secs);
+    applySearchFilter();
+  }
+  if (e.data && e.data.type === 'RESET_FILTER') {
+    resetFilter();
+  }
+  if (e.data && e.data.type === 'HIGHLIGHT_SEC') {
+    var b = e.data.payload.b;
+    var h = e.data.payload.h;
+    selectedB = new Set([b]);
+    selectedH = new Set([h]);
+    applySecFilter();
+    document.querySelectorAll('[data-filter-type="b"]').forEach(function(chip) {
+      var val = +chip.dataset.filterVal;
+      chip.style.background = val === b ? chip.style.borderColor + '22' : 'transparent';
+    });
+    document.querySelectorAll('[data-filter-type="h"]').forEach(function(chip) {
+      var val = +chip.dataset.filterVal;
+      chip.style.background = val === h ? '#7a706022' : 'transparent';
+    });
+  }
+});
+
+function useSectionInAuxiliar(entry) {
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'USE_SECTION', payload: entry }, '*');
+  }
+}
+
+</script>
+</body>
+</html>
