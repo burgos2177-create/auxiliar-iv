@@ -11,7 +11,7 @@ function fmt(v, dec = 4) {
   return Number(v).toFixed(dec)
 }
 
-const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 170">
+export const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 170">
   <rect x="18" y="10" width="22" height="90" fill="#1a1a2e"/>
   <rect x="8"  y="10" width="42" height="14" fill="#1a1a2e"/>
   <rect x="8"  y="86" width="42" height="14" fill="#1a1a2e"/>
@@ -23,7 +23,7 @@ const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 170">
     font-size="15" font-weight="800" letter-spacing="5" fill="#1a1a2e">INGENIERÍAS</text>
 </svg>`
 
-const CSS = `
+export const CSS = `
   body { font-family:'IBM Plex Sans',Arial,sans-serif; margin:18mm 15mm; color:#111; font-size:11pt; }
   @media print { body { margin:10mm 12mm; } .section-page { page-break-before:always; } }
   .paso { margin-bottom:14px; border:1px solid #d1d5db; border-radius:6px; overflow:hidden; break-inside:avoid; }
@@ -74,7 +74,7 @@ function paso(num, titulo, color, body) {
   </div><div class="paso-b">${body}</div></div>`
 }
 
-function renderFlexion(res, lecho, Mu, acento, fc, fy, b, h, r) {
+export function renderFlexion(res, lecho, Mu, acento, fc, fy, b, h, r) {
   if (!res || res.error) return `<div style="color:#dc2626;padding:12px">Error: ${res?.error || 'Sin datos'}</div>`
   const fcRed = 0.85 * fc
   const MuKgcm = Mu * 100000
@@ -158,7 +158,7 @@ function renderFlexion(res, lecho, Mu, acento, fc, fy, b, h, r) {
   return html
 }
 
-function renderCortante(resC, fc, fy, b, h, r, VuTon, L, AsUsada, varEstNum, nramas) {
+export function renderCortante(resC, fc, fy, b, h, r, VuTon, L, AsUsada, varEstNum, nramas) {
   if (!resC || !resC.Vr) return ''
 
   let html = `<div style="font-size:16px;font-weight:800;color:#0f172a;border-bottom:2px solid #9333ea;padding-bottom:8px;margin:32px 0 20px;text-transform:uppercase;letter-spacing:0.04em">Revisión por cortante</div>`
@@ -236,6 +236,69 @@ function renderCortante(resC, fc, fy, b, h, r, VuTon, L, AsUsada, varEstNum, nra
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Per-section calc — single source of truth (shared with memoria)
+// ═══════════════════════════════════════════════════════════════
+export function computeSectionResults(t) {
+  const calc = t.calc || {}
+  const fc = +t.fc || 250
+  const fy = +calc.fy || 4200
+  const b = +t.ancho, h = +t.peralte, r = +t.recub || 3
+  const MuP = +(calc.MuP || t.muPos || 0)
+  const MuN = +(calc.MuN || t.muNeg || 0)
+  const VuTon = +(calc.VuTon || t.vu || 0)
+  const L = +(calc.L || 0)
+  const varEstNum = +(calc.varEstNum || CAL_TO_NUM[t.calEst] || 2)
+  const nramas = +(calc.nramas || 2)
+
+  let resP = null, resN = null
+  if (MuP > 0 || +t.cantInf > 0) {
+    resP = calcFlexion({
+      fc, fy, b, h, r, MuTm: MuP,
+      varNum: +(calc.varPNum || CAL_TO_NUM[t.calInf] || 3),
+      varCount: +(calc.varPCount || t.cantInf || 0) || null,
+      bastonNum: +(calc.bastonPNum || CAL_TO_NUM[t.calBastonInf] || 3),
+      bastonCount: +(calc.bastonPCount || t.cantBastonInf || 0),
+    })
+    if (resP.error) resP = null
+  }
+  if (MuN > 0 || +t.cantSup > 0) {
+    resN = calcFlexion({
+      fc, fy, b, h, r, MuTm: MuN,
+      varNum: +(calc.varNNum || CAL_TO_NUM[t.calSup] || 3),
+      varCount: +(calc.varNCount || t.cantSup || 0) || null,
+      bastonNum: +(calc.bastonNNum || CAL_TO_NUM[t.calBastonSup] || 3),
+      bastonCount: +(calc.bastonNCount || t.cantBastonSup || 0),
+    })
+    if (resN.error) resN = null
+  }
+
+  const AsUsada = +(calc.asManual != null ? calc.asManual :
+    Math.max(resP?.AsTotal || 0, resN?.AsTotal || 0) || 4.52)
+
+  let resC = null
+  if (VuTon > 0) {
+    resC = calcCortante({
+      fc, fy, b, h, r, L, VuTon, AsUsada,
+      varEstNum, nramas,
+      conCompresion: calc.conCompresion, MuCorte: +(calc.MuCorte || 0),
+    })
+  }
+
+  const hasFlex = !!(resP || resN)
+  const hasCort = !!(resC && resC.Vr > 0)
+  const flexOk = (!resP || (resP.okMR && resP.okMin && resP.okMax && resP.okBmin)) &&
+    (!resN || (resN.okMR && resN.okMin && resN.okMax && resN.okBmin))
+  const cortOk = !hasCort || resC.okVr
+  const allOk = flexOk && cortOk
+  const hasData = hasFlex || hasCort
+
+  return {
+    calc, fc, fy, b, h, r, MuP, MuN, VuTon, L, varEstNum, nramas,
+    resP, resN, AsUsada, resC, hasFlex, hasCort, flexOk, cortOk, allOk, hasData,
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Main export
 // ═══════════════════════════════════════════════════════════════
 export function generateDetailedReport(sections, projectName = '') {
@@ -247,61 +310,10 @@ export function generateDetailedReport(sections, projectName = '') {
 
   let sectionsHTML = ''
   sections.forEach((t, idx) => {
-    const calc = t.calc || {}
-    const fc = +t.fc || 250
-    const fy = +calc.fy || 4200
-    const b = +t.ancho, h = +t.peralte, r = +t.recub || 3
-    const MuP = +(calc.MuP || t.muPos || 0)
-    const MuN = +(calc.MuN || t.muNeg || 0)
-    const VuTon = +(calc.VuTon || t.vu || 0)
-    const L = +(calc.L || 0)
-    const varEstNum = +(calc.varEstNum || CAL_TO_NUM[t.calEst] || 2)
-    const nramas = +(calc.nramas || 2)
-
-    // Run flexion calcs
-    let resP = null, resN = null
-    if (MuP > 0 || +t.cantInf > 0) {
-      resP = calcFlexion({
-        fc, fy, b, h, r, MuTm: MuP,
-        varNum: +(calc.varPNum || CAL_TO_NUM[t.calInf] || 3),
-        varCount: +(calc.varPCount || t.cantInf || 0) || null,
-        bastonNum: +(calc.bastonPNum || CAL_TO_NUM[t.calBastonInf] || 3),
-        bastonCount: +(calc.bastonPCount || t.cantBastonInf || 0),
-      })
-      if (resP.error) resP = null
-    }
-    if (MuN > 0 || +t.cantSup > 0) {
-      resN = calcFlexion({
-        fc, fy, b, h, r, MuTm: MuN,
-        varNum: +(calc.varNNum || CAL_TO_NUM[t.calSup] || 3),
-        varCount: +(calc.varNCount || t.cantSup || 0) || null,
-        bastonNum: +(calc.bastonNNum || CAL_TO_NUM[t.calBastonSup] || 3),
-        bastonCount: +(calc.bastonNCount || t.cantBastonSup || 0),
-      })
-      if (resN.error) resN = null
-    }
-
-    // AsUsada for shear
-    const AsUsada = +(calc.asManual != null ? calc.asManual :
-      Math.max(resP?.AsTotal || 0, resN?.AsTotal || 0) || 4.52)
-
-    // Run shear calc
-    let resC = null
-    if (VuTon > 0) {
-      resC = calcCortante({
-        fc, fy, b, h, r, L, VuTon, AsUsada,
-        varEstNum, nramas,
-        conCompresion: calc.conCompresion, MuCorte: +(calc.MuCorte || 0),
-      })
-    }
-
-    const hasFlex = resP || resN
-    const hasCort = resC && resC.Vr > 0
-    const flexOk = (!resP || (resP.okMR && resP.okMin && resP.okMax && resP.okBmin)) &&
-      (!resN || (resN.okMR && resN.okMin && resN.okMax && resN.okBmin))
-    const cortOk = !hasCort || resC.okVr
-    const allOk = flexOk && cortOk
-    const hasData = hasFlex || hasCort
+    const {
+      fc, fy, b, h, r, MuP, MuN, VuTon, L, varEstNum, nramas,
+      resP, resN, AsUsada, resC, hasFlex, hasCort, allOk, hasData,
+    } = computeSectionResults(t)
 
     summaryRows.push({ nombre: t.nombre, bxh: `${b}×${h}`, ok: allOk, hasData })
 

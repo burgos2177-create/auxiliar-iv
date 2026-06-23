@@ -5,6 +5,7 @@ import BeamCanvas from './components/BeamCanvas'
 import MomentScale from './components/MomentScale'
 import CalculatorView from './components/CalculatorView'
 import BDGlobalView from './components/BDGlobalView'
+import MemoriaDialog from './components/MemoriaDialog'
 import useBeamStore from './store/useBeamStore'
 import { svgToDxf } from './core/svgToDxf'
 import { generateReport } from './core/generateReport'
@@ -31,6 +32,7 @@ export default function App() {
   const [projectName, setProjectName] = useState('')
   const [mainTab, setMainTab] = useState('detalle')
   const [dbCount, setDbCount] = useState(0)
+  const [memoriaOpen, setMemoriaOpen] = useState(false)
 
   // Init Global DB on mount
   useEffect(() => {
@@ -124,8 +126,15 @@ export default function App() {
       <TopBar
         onExportDxf={handleExportDxf} onExportSvg={handleExportSvg}
         onSave={handleSave} onOpen={handleOpen} onVerifyResumido={handleVerifyResumido} onVerifyDetallado={handleVerifyDetallado}
+        onMemoria={() => setMemoriaOpen(true)}
         dxfScale={dxfScale} setDxfScale={setDxfScale}
         projectName={projectName} setProjectName={setProjectName}
+      />
+      <MemoriaDialog
+        open={memoriaOpen}
+        onClose={() => setMemoriaOpen(false)}
+        sections={sections}
+        projectName={projectName}
       />
       <div className="flex items-center gap-1 px-4 pt-2" style={{ background: 'var(--color-bg)' }}>
         <button onClick={() => setMainTab('detalle')}

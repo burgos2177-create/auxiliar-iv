@@ -11,7 +11,7 @@ const SCALE_PRESETS = [
   { label: '1:50', value: 50 },
 ]
 
-export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVerifyResumido, onVerifyDetallado, dxfScale, setDxfScale, projectName, setProjectName }) {
+export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVerifyResumido, onVerifyDetallado, onMemoria, dxfScale, setDxfScale, projectName, setProjectName }) {
   const sections = useBeamStore((s) => s.sections)
   const selectedIdx = useBeamStore((s) => s.selectedIdx)
   const selectSection = useBeamStore((s) => s.selectSection)
@@ -141,7 +141,25 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
             >
               <div style={{ fontWeight: 600 }}>Detallado</div>
               <div style={{ fontSize: 10, color: 'var(--color-tx3)', marginTop: 2 }}>
-                Memoria de c&aacute;lculo completa
+                Verificaci&oacute;n paso a paso por secci&oacute;n
+              </div>
+            </div>
+            <div style={{ height: 1, background: 'var(--color-border)', margin: '4px 6px' }} />
+            <div
+              onClick={() => { setVerifyOpen(false); onMemoria?.() }}
+              style={{
+                padding: '8px 12px', borderRadius: 5, cursor: 'pointer',
+                fontSize: 12, color: 'var(--color-tx2)', transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-border)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                Memoria de c&aacute;lculo
+                <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--color-accent)', color: '#0d1117', padding: '1px 6px', borderRadius: 99 }}>NUEVO</span>
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--color-tx3)', marginTop: 2 }}>
+                Documento completo + Double Check
               </div>
             </div>
           </div>
