@@ -189,7 +189,7 @@ function doubleCheckSection(dcheck, meta, forWord = false) {
 // Document body builder (shared by the PDF and Word outputs)
 // renderFig(t, R, i) → figure HTML · logoSrc → <img src> for the cover
 // ══════════════════════════════════════════════════════════════
-function normalizeMeta(meta) {
+export function normalizeMeta(meta) {
   return {
     norma: 'NTC-2023',
     proyecto: '', ubicacion: '', area: '', niveles: '', hEntrepiso: '',
@@ -419,9 +419,9 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = f
 }
 
 // ══════════════════════════════════════════════════════════════
-// SVG → PNG (so Word can show the cover logo and section details)
+// SVG → PNG data URL (used by the cover logo & section details)
 // ══════════════════════════════════════════════════════════════
-function svgToPng(svgString, fallbackW = 400, fallbackH = 300) {
+export function svgToPng(svgString, fallbackW = 400, fallbackH = 300) {
   return new Promise((resolve, reject) => {
     const src = svgString.includes('xmlns=')
       ? svgString
@@ -467,71 +467,4 @@ export function generateMemoria({ sections = [], meta = {}, dcheck = null } = {}
   if (!w) { alert('Habilita las ventanas emergentes para ver la memoria.'); return }
   w.document.write(doc)
   w.document.close()
-}
-
-// ══════════════════════════════════════════════════════════════
-// Output 2 — Word (.doc, editable) — rasterizes SVG figures to PNG
-// ══════════════════════════════════════════════════════════════
-export async function generateMemoriaWord({ sections = [], meta = {}, dcheck = null } = {}) {
-  const M = normalizeMeta(meta)
-
-  // Rasterize logo + each section detail to PNG (Word can't render SVG)
-  let logoSrc
-  try { logoSrc = await svgToPng(LOGO_SVG, 200, 170) }
-  catch { logoSrc = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(LOGO_SVG)))}` }
-
-  const figs = await Promise.all(sections.map(async (t) => {
-    try { return await svgToPng(sectionSvgString(t)) } catch { return null }
-  }))
-  // Word honors the HTML width attribute (px); CSS cm/% are unreliable
-  const renderFig = (t, R, i) => (figs[i]
-    ? `<div class="sec-svg"><img width="440" src="${figs[i]}" alt="Detalle ${esc(t.nombre)}"/></div>`
-    : '')
-
-  const body = buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord: true })
-
-  // Word-compatible HTML envelope (.doc) with page setup.
-  // The override block neutralizes flex/grid (unsupported) and the
-  // break-inside:avoid rules that left near-empty pages, and bounds images.
-  const wordCss = `
-    @page Section1 { size:21cm 29.7cm; margin:2cm 2cm; }
-    div.Section1 { page:Section1; }
-    body { font-family:'Calibri',Arial,sans-serif; }
-    ${DETAIL_CSS}${MEM_CSS}
-    /* ── Word overrides ── */
-    .paso-h { display:block; }
-    .data-grid { display:block; }
-    .data-grid div { display:inline-block; margin-right:18px; }
-    .shots { display:block; }
-    .paso, .det-wrap, .shots, .paso-b, .linea { break-inside:auto; page-break-inside:auto; }
-    /* overflow:hidden makes Word treat the box as a floating frame that
-       paginates alone — force visible so the steps flow inline. */
-    .paso, .shot { overflow:visible; }
-    .sec-svg img { width:440px; max-width:440px; }
-    img { max-width:17cm; }
-    /* Flow continuously: don't force a page per section (avoids near-empty
-       pages). Only the cover stands alone, and each trabe starts fresh. */
-    .mem-sec { page-break-before:auto; }
-    .mem-cover { page-break-after:always; }
-    .mem-trabe { page-break-before:always; }
-    /* Wide tables: smaller text so they fit the page width in Word */
-    table.mem th, table.mem td { font-size:8.5pt; padding:4px 5px; overflow-wrap:break-word; word-break:break-word; }
-    .mark-pill { font-size:7.5pt; padding:1px 4px; }
-  `
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-    xmlns:w="urn:schemas-microsoft-com:office:word"
-    xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">
-    <title>Memoria de Cálculo${M.proyecto ? ` — ${esc(M.proyecto)}` : ''}</title>
-    <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
-      <w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
-    <style>${wordCss}</style></head>
-    <body><div class="Section1">${body}</div></body></html>`
-
-  const blob = new Blob(['﻿', html], { type: 'application/msword' })
-  const name = (M.proyecto || 'memoria').trim().replace(/\s+/g, '-').replace(/[^\w-]/g, '') || 'memoria'
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `MEMORIA-${name}.doc`
-  a.click()
-  URL.revokeObjectURL(a.href)
 }

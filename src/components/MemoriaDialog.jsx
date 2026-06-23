@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { generateMemoria, generateMemoriaWord } from '../core/generateMemoria'
+import { generateMemoria } from '../core/generateMemoria'
+import { generateMemoriaDocx } from '../core/generateMemoriaDocx'
 
 const LS_KEY = 'iv_memoria_meta'
 
@@ -84,7 +85,7 @@ export default function MemoriaDialog({ open, onClose, sections, projectName }) 
     persist()
     setBusy(true)
     try {
-      await generateMemoriaWord({ sections, meta, dcheck })
+      await generateMemoriaDocx({ sections, meta, dcheck })
       onClose()
     } catch (err) {
       alert('No se pudo generar el documento Word: ' + (err?.message || err))
@@ -214,7 +215,7 @@ export default function MemoriaDialog({ open, onClose, sections, projectName }) 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         }}>
           <span style={{ fontSize: 10.5, color: 'var(--color-tx3)', maxWidth: 240, lineHeight: 1.4 }}>
-            El Word (.doc) abre y se edita en Microsoft Word; desde ahí puedes “Guardar como” .docx.
+            Word (.docx) nativo, editable directamente en Microsoft Word.
           </span>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn btn-secondary" style={{ fontSize: 13 }} onClick={onClose} disabled={busy}>Cancelar</button>
@@ -222,7 +223,7 @@ export default function MemoriaDialog({ open, onClose, sections, projectName }) 
               Vista PDF
             </button>
             <button className="btn btn-primary" style={{ fontSize: 13 }} disabled={sections.length === 0 || busy} onClick={handleWord}>
-              {busy ? 'Generando…' : 'Generar Word (.doc)'}
+              {busy ? 'Generando…' : 'Generar Word (.docx)'}
             </button>
           </div>
         </div>
