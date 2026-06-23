@@ -65,6 +65,7 @@ const MEM_CSS = `
   .shot img { width:100%; display:block; max-height:230px; object-fit:contain; background:#fff; }
   .firma { margin-top:60px; text-align:center; }
   .firma .line { width:320px; border-top:1.5px solid #0f172a; margin:0 auto 6px; }
+  .mem-trabe { page-break-before:always; }
   .no-print { position:fixed; top:14px; right:14px; z-index:9999; }
   .no-print button { background:#1a7a5e; color:#fff; border:none; border-radius:8px; padding:10px 18px;
                      font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.2); }
@@ -82,7 +83,9 @@ function brandFooter(meta) {
 }
 
 // ── Trabes summary table ──────────────────────────────────────
-function trabesResumen(rows) {
+// forWord → fixed width + table-layout so Word doesn't overflow the page
+function trabesResumen(rows, forWord = false) {
+  const tAttr = forWord ? ' width="640" style="table-layout:fixed"' : ''
   const body = rows.map((r, i) => {
     const m = r.mark ? MARK[r.mark] : null
     return `<tr>
@@ -97,7 +100,7 @@ function trabesResumen(rows) {
       <td style="text-align:center">${m ? `<span class="mark-pill" style="background:${m.bg};color:${m.color};border:1px solid ${m.bd}">${m.label}</span>` : '—'}</td>
     </tr>`
   }).join('')
-  return `<table class="mem">
+  return `<table class="mem"${tAttr}>
     <tr><th>#</th><th>Trabe</th><th>b×h (cm)</th><th>Lecho inf.</th><th>Lecho sup.</th>
         <th>Mu+/MR+ (t·m)</th><th>Mu−/MR− (t·m)</th><th>Vu/Vr (t)</th><th>Estado</th></tr>
     ${body}
@@ -167,12 +170,12 @@ function doubleCheckSection(dcheck, meta, forWord = false) {
   const credit = (m_) => (m_.reviso ? ` Revisó: ${esc(m_.reviso)}.` : '')
 
   return `<div class="mem-sec">
-    <h2 class="mem">9. Verificación cruzada (Double Check)</h2>
-    <p class="mem">Se realizó una verificación cruzada de los elementos confrontando las solicitaciones
+    <h2 class="mem">Verificación cruzada (Double Check)</h2>
+    <p class="mem-p">Se realizó una verificación cruzada de los elementos confrontando las solicitaciones
     obtenidas del modelo estructural (actuantes) contra las resistencias del diseño (resistentes).
     El cociente demanda/capacidad se evalúa por el caso más desfavorable: VERIFICADO (≤ 0.90),
     REVISAR (≤ 1.00) o NO PASA (&gt; 1.00).${credit(dcMeta)}</p>
-    <table class="mem">
+    <table class="mem"${forWord ? ' width="640" style="table-layout:fixed"' : ''}>
       <tr><th>#</th><th>Elemento</th><th>M+ act/res (ratio)</th><th>M− act/res (ratio)</th>
           <th>V act/res (ratio)</th><th>Estado</th><th>Observaciones</th></tr>
       ${rows}
@@ -227,37 +230,46 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = f
   const fcTxt = fcSet.length ? fcSet.map((x) => `${x} kg/cm²`).join(', ') : '250 kg/cm²'
   const fyTxt = fySet.length ? fySet.map((x) => `${x} kg/cm²`).join(', ') : '4200 kg/cm²'
 
-  // ── Per-section design detail ──
+  // ── Descriptive sentence per trabe (TERRASOLES-style) ──
+  const trabeFrase = (t, R) => {
+    const arm = (res, n, cal) => res
+      ? `${res.nUsed} varilla(s) del número ${res.vr.num}${res.nBastones > 0 ? ` más ${res.nBastones} bastón(es) del número ${res.vb.num}` : ''}`
+      : `${n} varilla(s) del número ${cal}`
+    return `El detalle del diseño resultante se muestra a continuación, resultando una trabe de ${R.b} cm de
+      ancho con ${R.h} cm de peralte, ${arm(R.resP, t.cantInf, t.calInf)} en el lecho inferior,
+      ${arm(R.resN, t.cantSup, t.calSup)} en el lecho superior y estribos del número ${esc(t.calEst)} con la
+      distribución indicada en el detalle (@ ${esc(t.sepLcuarto)} cm en L/4 y @ ${esc(t.sepRest)} cm en el resto).`
+  }
+
+  // ── Per-trabe design detail ──
   const detalle = computed.map(({ t, R }, i) => {
     const isGov = i === govIdx
     const full = M.detalleTodos || isGov
-    let body = renderFig(t, R, i)
-
+    let calc = ''
     if (!R.hasData) {
-      body += `<p class="mem-p" style="color:#92400e">Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.</p>`
+      calc = `<p class="mem-p" style="color:#92400e">Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.</p>`
     } else if (full) {
-      if (R.MuP > 0 && R.resP) body += renderFlexion(R.resP, '▲ MOMENTO POSITIVO (M+) — Lecho inferior', R.MuP, '#1d4ed8', R.fc, R.fy, R.b, R.h, R.r)
-      if (R.MuN > 0 && R.resN) body += renderFlexion(R.resN, '▼ MOMENTO NEGATIVO (M−) — Lecho superior', R.MuN, '#b45309', R.fc, R.fy, R.b, R.h, R.r)
-      if (R.hasCort && R.VuTon > 0) body += renderCortante(R.resC, R.fc, R.fy, R.b, R.h, R.r, R.VuTon, R.L, R.AsUsada, R.varEstNum, R.nramas)
+      if (R.MuP > 0 && R.resP) calc += renderFlexion(R.resP, '▲ MOMENTO POSITIVO (M+) — Lecho inferior', R.MuP, '#1d4ed8', R.fc, R.fy, R.b, R.h, R.r)
+      if (R.MuN > 0 && R.resN) calc += renderFlexion(R.resN, '▼ MOMENTO NEGATIVO (M−) — Lecho superior', R.MuN, '#b45309', R.fc, R.fy, R.b, R.h, R.r)
+      if (R.hasCort && R.VuTon > 0) calc += renderCortante(R.resC, R.fc, R.fy, R.b, R.h, R.r, R.VuTon, R.L, R.AsUsada, R.varEstNum, R.nramas)
     } else {
-      body += resultCard(rows[i])
+      calc = resultCard(rows[i])
     }
-
-    return `<div class="${i > 0 ? 'mem-sec mem-trabe' : ''}">
-      <h2 class="mem">6.${i + 1} Trabe ${esc(t.nombre || `T-${i + 1}`)}${isGov ? ' — gobernante' : ''}</h2>
-      ${isGov ? `<p class="mem-p">Esta trabe rige el diseño por flexión con un momento último de
-        <b>${fmt(govMu, 2)} t·m</b>. A continuación se presenta su diseño por resistencia
-        (estado límite de falla) y, en su caso, la revisión por cortante.</p>` : ''}
-      <div class="det-wrap">${body}</div>
+    return `<div class="mem-trabe">
+      <h3 class="mem">Trabe ${esc(t.nombre || `T-${i + 1}`)}${isGov ? ' — gobernante' : ''}</h3>
+      ${R.hasData ? `<p class="mem-p">${trabeFrase(t, R)}</p>` : ''}
+      ${renderFig(t, R, i)}
+      <div class="det-wrap">${calc}</div>
       ${brandFooter(M)}
     </div>`
   }).join('')
 
-  // ── Assemble body ──
+  // ── Intro (TERRASOLES-style wording) ──
   const introTxt = M.descripcion?.trim()
     ? esc(M.descripcion).replace(/\n/g, '<br>')
-    : `Se realizó el diseño estructural de ${M.proyecto ? `“${esc(M.proyecto)}”` : 'la edificación'}${M.ubicacion ? `, ubicada en ${esc(M.ubicacion)}` : ''}${M.area ? `, con aproximadamente ${esc(M.area)} m² de construcción` : ''}.
-       El sistema estructural se compone de elementos de concreto reforzado diseñados conforme a la normatividad vigente${M.niveles ? `. La edificación consta de ${esc(M.niveles)} nivel(es)` : ''}${M.hEntrepiso ? ` con una altura de entrepiso de ${esc(M.hEntrepiso)} m` : ''}.`
+    : `Se realizó el diseño estructural de ${M.proyecto ? `“${esc(M.proyecto)}”` : 'la edificación'}${M.ubicacion ? `, localizada en ${esc(M.ubicacion)}` : ''}${M.area ? `, con aproximadamente ${esc(M.area)} m² de construcción` : ''}. El sistema constructivo es mediante muros de carga de block, losas de entrepiso y azotea de vigueta y bovedilla, estructura principal de concreto reforzado y cimentación a base de zapatas corridas y aisladas${M.niveles ? `. La edificación cuenta con ${esc(M.niveles)} nivel(es)` : ''}${M.hEntrepiso ? `, con una altura de entrepiso de ${esc(M.hEntrepiso)} m` : ''}.`
+
+  const govNombre = govIdx >= 0 ? esc(computed[govIdx].t.nombre || `T-${govIdx + 1}`) : '—'
 
   return `
     <!-- ░░ PORTADA ░░ -->
@@ -277,103 +289,111 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = f
       </table>
     </div>
 
-    <!-- 1. INTRODUCCIÓN -->
+    <!-- INTRODUCCIÓN -->
     <div class="mem-sec">
-      <h2 class="mem">1. Introducción</h2>
+      <h2 class="mem">Introducción</h2>
       <p class="mem-p">${introTxt}</p>
       ${brandFooter(M)}
     </div>
 
-    <!-- 2. MATERIALES -->
+    <!-- PROPIEDADES DE LOS MATERIALES -->
     <div class="mem-sec">
-      <h2 class="mem">2. Propiedades de los materiales</h2>
+      <h2 class="mem">Propiedades de los materiales</h2>
+      <p class="mem-p"><b>Concreto:</b></p>
       <ul class="mem">
-        <li><b>Concreto estructural:</b> f'c = ${esc(fcTxt)}.</li>
-        <li><b>Concreto en elementos secundarios / plantilla:</b> f'c = 100 a 200 kg/cm².</li>
-        <li><b>Acero de refuerzo:</b> varilla corrugada ASTM-A615, fy = ${esc(fyTxt)}.</li>
-        <li><b>Peso volumétrico del concreto reforzado:</b> 2400 kg/m³.</li>
+        <li>Para elementos secundarios y plantilla de desplante: de f'c = 100 kg/cm² a f'c = 200 kg/cm².</li>
+        <li>Elementos estructurales, muros y losas: f'c = ${esc(fcTxt)}.</li>
+        <li>Acero de refuerzo: varilla corrugada ASTM-615 de fy = ${esc(fyTxt)}.</li>
       </ul>
       ${brandFooter(M)}
     </div>
 
-    <!-- 3. CARGAS -->
+    <!-- ANÁLISIS DE CARGAS -->
     <div class="mem-sec">
-      <h2 class="mem">3. Análisis de cargas</h2>
-      <h3 class="mem">3.1 Cargas muertas (CM)</h3>
-      <p class="mem-p">Para el sistema de losa de entrepiso y azotea (vigueta y bovedilla) se consideró la
-      siguiente integración de carga muerta:</p>
-      <table class="mem" style="max-width:430px">
+      <h2 class="mem">Análisis de cargas</h2>
+
+      <h3 class="mem">Cargas muertas</h3>
+      <p class="mem-p">Se utilizará vigueta y bovedilla como sistema estructural para las losas de entrepiso
+      y azotea; por lo tanto, la carga muerta obtenida por el peso propio de la losa se obtuvo como sigue:</p>
+      <table class="mem" style="max-width:360px">
         <tr><th>Concepto</th><th>Carga (kg/m²)</th></tr>
         <tr><td>Vigueta y bovedilla</td><td class="num">144.0</td></tr>
         <tr><td>Sobrecarga</td><td class="num">40.0</td></tr>
         <tr><td>Piso</td><td class="num">30.0</td></tr>
         <tr><td>Yeso</td><td class="num">22.5</td></tr>
-        <tr><td><b>Total CM losa</b></td><td class="num"><b>${esc(M.cmEntrepiso)}</b></td></tr>
+        <tr><td><b>Total</b></td><td class="num"><b>${esc(M.cmEntrepiso)}</b></td></tr>
       </table>
-      <p class="mem-p">Muros de block: ${esc(M.cmMuro)} kg/m². El peso propio de trabes y columnas se
-      determina con un peso específico de 2400 kg/m³.</p>
-      <h3 class="mem">3.2 Cargas vivas (CV)</h3>
-      <p class="mem-p">De acuerdo con las Normas Técnicas Complementarias, para vivienda se consideran
-      cargas vivas de ${esc(M.cvEntrepiso)} kg/m² en losas de entrepiso y ${esc(M.cvAzotea)} kg/m²
-      en azotea con pendiente menor al 5%.</p>
-      ${brandFooter(M)}
-    </div>
+      <p class="mem-p">En cuanto a los muros se propone block, por lo tanto, su peso unitario es de
+      ${esc(M.cmMuro)} kg/m². El peso propio de los elementos estructurales como trabes y columnas se
+      determina considerando un peso específico de 2400 kg/m³.</p>
 
-    <!-- 4. ESTADOS DE CARGA -->
-    <div class="mem-sec">
-      <h2 class="mem">4. Estados de carga (combinaciones)</h2>
-      <p class="mem-p">Las combinaciones de carga empleadas conforme a ${esc(M.norma)} son:</p>
+      <h3 class="mem">Cargas vivas</h3>
+      <p class="mem-p">Se consideraron las cargas vivas para casa habitación dentro de las Normas Técnicas
+      Complementarias (NTC, 2017), donde se especifica que para losas de entrepiso son ${esc(M.cvEntrepiso)}
+      kg/m² y para azotea con pendientes menores al 5% se consideran de ${esc(M.cvAzotea)} kg/m². La
+      distribución de carga de las losas se realizó considerando la orientación de la vigueta y bovedilla
+      propuesta; debido a la naturaleza del sistema las cargas se transmiten en una sola dirección.</p>
+
+      <h3 class="mem">Estados de carga</h3>
+      <p class="mem-p">Las combinaciones de carga a utilizar según las Normas Técnicas Complementarias
+      (${esc(M.norma)}) son las siguientes:</p>
       <ul class="mem">
-        <li><b>Estado límite de servicio:</b> CM + CV</li>
-        <li><b>Estado límite de falla (diseño):</b> 1.3 CM + 1.5 CV</li>
+        <li>Estado límite de servicio: CV + CM</li>
+        <li>Estado límite de diseño: 1.3 CM + 1.5 CV</li>
       </ul>
-      <p class="mem-p" style="color:#6b7280;font-size:10pt">CM: carga muerta (permanente) · CV: carga viva (variable).
-      Los momentos y cortantes últimos empleados en el diseño provienen del análisis del modelo estructural
-      bajo la combinación de falla.</p>
-      ${brandFooter(M)}
-    </div>
+      <p class="mem-p">CV: Carga viva (Variable). CM: Carga muerta (Permanente).</p>
 
-    <!-- 5. NORMATIVA -->
-    <div class="mem-sec">
-      <h2 class="mem">5. Normatividad de diseño</h2>
+      <h3 class="mem">Normativas de diseño</h3>
       <ul class="mem">
-        <li>Normas Técnicas Complementarias para Diseño y Construcción de Estructuras de Concreto (${esc(M.norma)}).</li>
-        <li>American Concrete Institute — ACI 318-19.</li>
+        <li>Normas Técnicas Complementarias (${esc(M.norma)}).</li>
+        <li>American Concrete Institute (ACI 318-19).</li>
       </ul>
-      <p class="mem-p">El diseño de los elementos de concreto reforzado se realizó por el método de diseño
-      por resistencia (estados límite).</p>
       ${brandFooter(M)}
     </div>
 
-    <!-- 6. DISEÑO DE TRABES -->
+    <!-- DISEÑO -->
     <div class="mem-sec">
-      <h2 class="mem">6. Diseño de trabes</h2>
-      <p class="mem-p">A partir del análisis estructural se obtuvieron los momentos y cortantes de diseño
-      de cada trabe. La siguiente tabla resume las ${sections.length} sección(es) consideradas; el detalle
-      del diseño por resistencia se presenta a continuación${M.detalleTodos ? ' para cada elemento' : ', con desarrollo completo de la trabe gobernante'}.</p>
-      ${trabesResumen(rows)}
+      <h2 class="mem">Diseño</h2>
+
+      <h3 class="mem">Diseño de trabes y columnas</h3>
+      <p class="mem-p">Se construyó un modelo analítico de la estructura, del cual, mediante su análisis, se
+      obtuvieron los momentos y cortantes de diseño como parámetros para las vigas; en cuanto a las columnas
+      se obtuvieron las cargas axiales críticas y sus respectivos momentos de diseño. Además, para realizar la
+      revisión por estado límite de servicio según las NTC 2023, se obtuvieron las deflexiones máximas.</p>
+
+      <h3 class="mem">Estado límite de diseño</h3>
+      <p class="mem-p">De acuerdo con la revisión de momentos, ésta es la condición dominante en la revisión
+      por estado límite de diseño, ya que los cortantes y las deflexiones se encontraron en rangos aceptables.
+      ${govIdx >= 0 ? `El momento crítico de la estructura se presenta en la trabe <b>${govNombre}</b>, con un valor de <b>${fmt(govMu, 2)} ton·m</b>. ` : ''}Considerando
+      los momentos obtenidos del análisis se realizó el diseño por resistencia, el cual se describe a
+      continuación. La siguiente tabla resume las ${sections.length} trabe(s) consideradas:</p>
+      ${trabesResumen(rows, forWord)}
       ${brandFooter(M)}
     </div>
     ${detalle}
 
-    <!-- 7. COLUMNAS (placeholder) -->
+    <!-- DISEÑO — servicio / columnas / cimentación -->
     <div class="mem-sec">
-      <h2 class="mem">7. Diseño de columnas</h2>
+      <h3 class="mem">Estado límite de servicio</h3>
+      <p class="mem-p">El estado límite de servicio se revisó conforme a las NTC 2023, las cuales establecen
+      que la deflexión vertical máxima permisible está en función de la longitud de los elementos
+      (L/240, siendo L la longitud del elemento horizontal). Las deflexiones actuantes obtenidas del modelo
+      resultaron menores a las permisibles, por lo que el diseño propuesto es aceptable.</p>
+
+      <h3 class="mem">Diseño de columnas</h3>
       <div class="placeholder">
         <b>Sección en desarrollo.</b><br>
-        Aquí se integrará el diseño de columnas por <b>flexocompresión</b>
-        (elementos mecánicos actuantes Pu, Mu; resistencia P-M; detalle de armado).<br>
+        La columna más crítica presenta momento, por lo que se llevará a cabo un diseño de
+        <b>flexocompresión</b> a partir de la carga axial (Pu) y el momento (Mu) últimos obtenidos del
+        análisis, con la respectiva revisión de la resistencia P-M y el detalle de armado.<br>
         <span style="font-size:9.5pt">Pendiente de captura — se completará con el módulo de columnas.</span>
       </div>
-      ${brandFooter(M)}
-    </div>
 
-    <!-- 8. CIMENTACIÓN (placeholder) -->
-    <div class="mem-sec">
-      <h2 class="mem">8. Diseño de cimentación</h2>
+      <h3 class="mem">Diseño de cimentación</h3>
       <div class="placeholder">
         <b>Sección en desarrollo.</b><br>
-        Aquí se integrará la revisión de la cimentación (zapatas aisladas y corridas, contratrabes).<br>
+        Se realizará la revisión del diseño de cimentación a base de zapatas aisladas y corridas y
+        contratrabes.<br>
         <span style="font-size:9.5pt">Pendiente de captura.</span>
       </div>
       ${brandFooter(M)}
@@ -381,18 +401,18 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = f
 
     ${doubleCheckSection(dcheck, M, forWord)}
 
-    <!-- 10. ANEXOS -->
+    <!-- ANEXOS -->
     <div class="mem-sec">
-      <h2 class="mem">10. Anexos</h2>
-      <p class="mem-p">Se anexan los planos de estructuración (planta alta, azotea y cimentación) y el
-      reporte de elementos mecánicos del modelo estructural.</p>
-      <div class="placeholder"><b>Planos de estructuración</b> — adjuntar.</div>
+      <h2 class="mem">Anexos</h2>
+      <p class="mem-p">Planos de estructuración.</p>
+      <div class="placeholder">Planos de estructuración (planta alta, azotea y cimentación) y reporte de
+      momentos y cortantes del modelo estructural — <b>adjuntar</b>.</div>
 
       <div class="firma">
         <p class="mem-p" style="text-align:center;margin-bottom:50px">ATENTAMENTE</p>
         <div class="line"></div>
         <div style="font-weight:700;font-size:11.5pt">Ing. ${esc(M.responsable || '________________________')}</div>
-        ${M.cedula ? `<div style="font-size:10pt;color:#6b7280">Cédula profesional: ${esc(M.cedula)}</div>` : ''}
+        ${M.cedula ? `<div style="font-size:10pt;color:#6b7280">Cédula: ${esc(M.cedula)}</div>` : ''}
       </div>
       ${brandFooter(M)}
     </div>`
@@ -491,6 +511,9 @@ export async function generateMemoriaWord({ sections = [], meta = {}, dcheck = n
     .mem-sec { page-break-before:auto; }
     .mem-cover { page-break-after:always; }
     .mem-trabe { page-break-before:always; }
+    /* Wide tables: smaller text so they fit the page width in Word */
+    table.mem th, table.mem td { font-size:8.5pt; padding:4px 5px; overflow-wrap:break-word; word-break:break-word; }
+    .mark-pill { font-size:7.5pt; padding:1px 4px; }
   `
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word"

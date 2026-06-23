@@ -157,6 +157,7 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
   .shot img { width:100%; display:block; max-height:230px; object-fit:contain; background:#fff; }
   .firma { margin-top:60px; text-align:center; }
   .firma .line { width:320px; border-top:1.5px solid #0f172a; margin:0 auto 6px; }
+  .mem-trabe { page-break-before:always; }
   .no-print { position:fixed; top:14px; right:14px; z-index:9999; }
   .no-print button { background:#1a7a5e; color:#fff; border:none; border-radius:8px; padding:10px 18px;
                      font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.2); }
@@ -166,7 +167,7 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
       <td style="border:none;padding:6px 0 0;text-align:left">IV Ingenierías · ${_t(e.norma)}</td>
       <td style="border:none;padding:6px 0 0;text-align:right">${_t(e.proyecto||`Memoria de cálculo`)}</td>
     </tr>
-  </table>`}function wt(e){return`<table class="mem">
+  </table>`}function wt(e,t=!1){return`<table class="mem"${t?` width="640" style="table-layout:fixed"`:``}>
     <tr><th>#</th><th>Trabe</th><th>b×h (cm)</th><th>Lecho inf.</th><th>Lecho sup.</th>
         <th>Mu+/MR+ (t·m)</th><th>Mu−/MR− (t·m)</th><th>Vu/Vr (t)</th><th>Estado</th></tr>
     ${e.map((e,t)=>{let n=e.mark?yt[e.mark]:null;return`<tr>
@@ -195,27 +196,28 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
       <td style="text-align:center">${o?`<span class="mark-pill" style="background:${o.bg};color:${o.color};border:1px solid ${o.bd}">${o.label}</span>`:`—`}</td>
       <td>${_t(e.obs||``)}</td>
     </tr>`}).join(``),a=r.map(e=>{let t=[[`Momento — modelo estructural`,e.imgA],[`Momento — cálculo de diseño`,e.imgB],[`Cortante — modelo estructural`,e.imgC],[`Cortante — cálculo de diseño`,e.imgD]].filter(([,e])=>!!e);if(!t.length)return``;let r=t.map(([e,t])=>n?`<div style="margin:0 0 8px"><div style="font-size:9pt;font-weight:700;color:#374151;background:#f3f4f6;padding:3px 8px;border:1px solid #d1d5db;border-bottom:none">${_t(e)}</div><img width="440" src="${t}" alt="${_t(e)}" style="display:block;border:1px solid #d1d5db"/></div>`:`<div class="shot"><div class="cap">${_t(e)}</div><img src="${t}" alt="${_t(e)}"/></div>`).join(``);return`<h3 class="mem">Evidencia — ${_t(e.name||`Elemento`)}</h3>`+(n?r:`<div class="shots">${r}</div>`)}).join(``);return`<div class="mem-sec">
-    <h2 class="mem">9. Verificación cruzada (Double Check)</h2>
-    <p class="mem">Se realizó una verificación cruzada de los elementos confrontando las solicitaciones
+    <h2 class="mem">Verificación cruzada (Double Check)</h2>
+    <p class="mem-p">Se realizó una verificación cruzada de los elementos confrontando las solicitaciones
     obtenidas del modelo estructural (actuantes) contra las resistencias del diseño (resistentes).
     El cociente demanda/capacidad se evalúa por el caso más desfavorable: VERIFICADO (≤ 0.90),
     REVISAR (≤ 1.00) o NO PASA (&gt; 1.00).${(e=>e.reviso?` Revisó: ${_t(e.reviso)}.`:``)(e.meta||{})}</p>
-    <table class="mem">
+    <table class="mem"${n?` width="640" style="table-layout:fixed"`:``}>
       <tr><th>#</th><th>Elemento</th><th>M+ act/res (ratio)</th><th>M− act/res (ratio)</th>
           <th>V act/res (ratio)</th><th>Estado</th><th>Observaciones</th></tr>
       ${i}
     </table>
     ${a}
     ${Ct(t)}
-  </div>`}function Et(e){return{norma:`NTC-2023`,proyecto:``,ubicacion:``,area:``,niveles:``,hEntrepiso:``,responsable:``,cedula:``,fecha:new Date().toLocaleDateString(`es-MX`),descripcion:``,cmEntrepiso:`236.5`,cmMuro:`249.4`,cvEntrepiso:`190`,cvAzotea:`100`,detalleTodos:!0,...e}}function Dt({sections:e,M:t,dcheck:n,renderFig:r,logoSrc:i,forWord:a=!1}){let o=e.map(e=>({t:e,R:ft(e)})),s=-1,c=-1;o.forEach(({R:e},t)=>{let n=Math.max(e.MuP||0,e.MuN||0);n>c&&(c=n,s=t)});let l=o.map(({t:e,R:t})=>({nombre:e.nombre,b:t.b,h:t.h,infTxt:t.resP?`${t.resP.nUsed}#${t.resP.vr.num}${t.resP.nBastones>0?`+${t.resP.nBastones}#${t.resP.vb.num}`:``}`:`${e.cantInf}#${e.calInf}`,supTxt:t.resN?`${t.resN.nUsed}#${t.resN.vr.num}${t.resN.nBastones>0?`+${t.resN.nBastones}#${t.resN.vb.num}`:``}`:`${e.cantSup}#${e.calSup}`,MuP:t.MuP,MRTP:t.resP?.MRT,MuN:t.MuN,MRTN:t.resN?.MRT,Vu:t.VuTon,Vr:t.resC?.Vr,okP:t.resP?t.resP.okMR:void 0,okN:t.resN?t.resN.okMR:void 0,okV:t.resC?t.resC.okVr:void 0,mark:t.hasData?t.allOk?`ok`:`bad`:null})),u=[...new Set(o.map(({R:e})=>e.fc))].sort((e,t)=>e-t),d=[...new Set(o.map(({R:e})=>e.fy))].sort((e,t)=>e-t),f=u.length?u.map(e=>`${e} kg/cm²`).join(`, `):`250 kg/cm²`,p=d.length?d.map(e=>`${e} kg/cm²`).join(`, `):`4200 kg/cm²`,m=o.map(({t:e,R:n},i)=>{let a=i===s,o=t.detalleTodos||a,u=r(e,n,i);return n.hasData?o?(n.MuP>0&&n.resP&&(u+=ut(n.resP,`▲ MOMENTO POSITIVO (M+) — Lecho inferior`,n.MuP,`#1d4ed8`,n.fc,n.fy,n.b,n.h,n.r)),n.MuN>0&&n.resN&&(u+=ut(n.resN,`▼ MOMENTO NEGATIVO (M−) — Lecho superior`,n.MuN,`#b45309`,n.fc,n.fy,n.b,n.h,n.r)),n.hasCort&&n.VuTon>0&&(u+=dt(n.resC,n.fc,n.fy,n.b,n.h,n.r,n.VuTon,n.L,n.AsUsada,n.varEstNum,n.nramas))):u+=Y(l[i]):u+=`<p class="mem-p" style="color:#92400e">Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.</p>`,`<div class="${i>0?`mem-sec mem-trabe`:``}">
-      <h2 class="mem">6.${i+1} Trabe ${_t(e.nombre||`T-${i+1}`)}${a?` — gobernante`:``}</h2>
-      ${a?`<p class="mem-p">Esta trabe rige el diseño por flexión con un momento último de
-        <b>${vt(c,2)} t·m</b>. A continuación se presenta su diseño por resistencia
-        (estado límite de falla) y, en su caso, la revisión por cortante.</p>`:``}
-      <div class="det-wrap">${u}</div>
+  </div>`}function Et(e){return{norma:`NTC-2023`,proyecto:``,ubicacion:``,area:``,niveles:``,hEntrepiso:``,responsable:``,cedula:``,fecha:new Date().toLocaleDateString(`es-MX`),descripcion:``,cmEntrepiso:`236.5`,cmMuro:`249.4`,cvEntrepiso:`190`,cvAzotea:`100`,detalleTodos:!0,...e}}function Dt({sections:e,M:t,dcheck:n,renderFig:r,logoSrc:i,forWord:a=!1}){let o=e.map(e=>({t:e,R:ft(e)})),s=-1,c=-1;o.forEach(({R:e},t)=>{let n=Math.max(e.MuP||0,e.MuN||0);n>c&&(c=n,s=t)});let l=o.map(({t:e,R:t})=>({nombre:e.nombre,b:t.b,h:t.h,infTxt:t.resP?`${t.resP.nUsed}#${t.resP.vr.num}${t.resP.nBastones>0?`+${t.resP.nBastones}#${t.resP.vb.num}`:``}`:`${e.cantInf}#${e.calInf}`,supTxt:t.resN?`${t.resN.nUsed}#${t.resN.vr.num}${t.resN.nBastones>0?`+${t.resN.nBastones}#${t.resN.vb.num}`:``}`:`${e.cantSup}#${e.calSup}`,MuP:t.MuP,MRTP:t.resP?.MRT,MuN:t.MuN,MRTN:t.resN?.MRT,Vu:t.VuTon,Vr:t.resC?.Vr,okP:t.resP?t.resP.okMR:void 0,okN:t.resN?t.resN.okMR:void 0,okV:t.resC?t.resC.okVr:void 0,mark:t.hasData?t.allOk?`ok`:`bad`:null})),u=[...new Set(o.map(({R:e})=>e.fc))].sort((e,t)=>e-t),d=[...new Set(o.map(({R:e})=>e.fy))].sort((e,t)=>e-t),f=u.length?u.map(e=>`${e} kg/cm²`).join(`, `):`250 kg/cm²`,p=d.length?d.map(e=>`${e} kg/cm²`).join(`, `):`4200 kg/cm²`,m=(e,t)=>{let n=(e,t,n)=>e?`${e.nUsed} varilla(s) del número ${e.vr.num}${e.nBastones>0?` más ${e.nBastones} bastón(es) del número ${e.vb.num}`:``}`:`${t} varilla(s) del número ${n}`;return`El detalle del diseño resultante se muestra a continuación, resultando una trabe de ${t.b} cm de
+      ancho con ${t.h} cm de peralte, ${n(t.resP,e.cantInf,e.calInf)} en el lecho inferior,
+      ${n(t.resN,e.cantSup,e.calSup)} en el lecho superior y estribos del número ${_t(e.calEst)} con la
+      distribución indicada en el detalle (@ ${_t(e.sepLcuarto)} cm en L/4 y @ ${_t(e.sepRest)} cm en el resto).`},h=o.map(({t:e,R:n},i)=>{let a=i===s,o=t.detalleTodos||a,c=``;return n.hasData?o?(n.MuP>0&&n.resP&&(c+=ut(n.resP,`▲ MOMENTO POSITIVO (M+) — Lecho inferior`,n.MuP,`#1d4ed8`,n.fc,n.fy,n.b,n.h,n.r)),n.MuN>0&&n.resN&&(c+=ut(n.resN,`▼ MOMENTO NEGATIVO (M−) — Lecho superior`,n.MuN,`#b45309`,n.fc,n.fy,n.b,n.h,n.r)),n.hasCort&&n.VuTon>0&&(c+=dt(n.resC,n.fc,n.fy,n.b,n.h,n.r,n.VuTon,n.L,n.AsUsada,n.varEstNum,n.nramas))):c=Y(l[i]):c=`<p class="mem-p" style="color:#92400e">Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.</p>`,`<div class="mem-trabe">
+      <h3 class="mem">Trabe ${_t(e.nombre||`T-${i+1}`)}${a?` — gobernante`:``}</h3>
+      ${n.hasData?`<p class="mem-p">${m(e,n)}</p>`:``}
+      ${r(e,n,i)}
+      <div class="det-wrap">${c}</div>
       ${Ct(t)}
-    </div>`}).join(``),h=t.descripcion?.trim()?_t(t.descripcion).replace(/\n/g,`<br>`):`Se realizó el diseño estructural de ${t.proyecto?`“${_t(t.proyecto)}”`:`la edificación`}${t.ubicacion?`, ubicada en ${_t(t.ubicacion)}`:``}${t.area?`, con aproximadamente ${_t(t.area)} m² de construcción`:``}.
-       El sistema estructural se compone de elementos de concreto reforzado diseñados conforme a la normatividad vigente${t.niveles?`. La edificación consta de ${_t(t.niveles)} nivel(es)`:``}${t.hEntrepiso?` con una altura de entrepiso de ${_t(t.hEntrepiso)} m`:``}.`;return`
+    </div>`}).join(``),g=t.descripcion?.trim()?_t(t.descripcion).replace(/\n/g,`<br>`):`Se realizó el diseño estructural de ${t.proyecto?`“${_t(t.proyecto)}”`:`la edificación`}${t.ubicacion?`, localizada en ${_t(t.ubicacion)}`:``}${t.area?`, con aproximadamente ${_t(t.area)} m² de construcción`:``}. El sistema constructivo es mediante muros de carga de block, losas de entrepiso y azotea de vigueta y bovedilla, estructura principal de concreto reforzado y cimentación a base de zapatas corridas y aisladas${t.niveles?`. La edificación cuenta con ${_t(t.niveles)} nivel(es)`:``}${t.hEntrepiso?`, con una altura de entrepiso de ${_t(t.hEntrepiso)} m`:``}.`,_=s>=0?_t(o[s].t.nombre||`T-${s+1}`):`—`;return`
     \x3C!-- ░░ PORTADA ░░ -->
     <div class="mem-cover" style="text-align:center;padding:55mm 0 40mm">
       <img width="120" src="${i}" style="width:120px;margin:0 auto 18px" alt="IV"/>
@@ -233,103 +235,111 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
       </table>
     </div>
 
-    \x3C!-- 1. INTRODUCCIÓN -->
+    \x3C!-- INTRODUCCIÓN -->
     <div class="mem-sec">
-      <h2 class="mem">1. Introducción</h2>
-      <p class="mem-p">${h}</p>
+      <h2 class="mem">Introducción</h2>
+      <p class="mem-p">${g}</p>
       ${Ct(t)}
     </div>
 
-    \x3C!-- 2. MATERIALES -->
+    \x3C!-- PROPIEDADES DE LOS MATERIALES -->
     <div class="mem-sec">
-      <h2 class="mem">2. Propiedades de los materiales</h2>
+      <h2 class="mem">Propiedades de los materiales</h2>
+      <p class="mem-p"><b>Concreto:</b></p>
       <ul class="mem">
-        <li><b>Concreto estructural:</b> f'c = ${_t(f)}.</li>
-        <li><b>Concreto en elementos secundarios / plantilla:</b> f'c = 100 a 200 kg/cm².</li>
-        <li><b>Acero de refuerzo:</b> varilla corrugada ASTM-A615, fy = ${_t(p)}.</li>
-        <li><b>Peso volumétrico del concreto reforzado:</b> 2400 kg/m³.</li>
+        <li>Para elementos secundarios y plantilla de desplante: de f'c = 100 kg/cm² a f'c = 200 kg/cm².</li>
+        <li>Elementos estructurales, muros y losas: f'c = ${_t(f)}.</li>
+        <li>Acero de refuerzo: varilla corrugada ASTM-615 de fy = ${_t(p)}.</li>
       </ul>
       ${Ct(t)}
     </div>
 
-    \x3C!-- 3. CARGAS -->
+    \x3C!-- ANÁLISIS DE CARGAS -->
     <div class="mem-sec">
-      <h2 class="mem">3. Análisis de cargas</h2>
-      <h3 class="mem">3.1 Cargas muertas (CM)</h3>
-      <p class="mem-p">Para el sistema de losa de entrepiso y azotea (vigueta y bovedilla) se consideró la
-      siguiente integración de carga muerta:</p>
-      <table class="mem" style="max-width:430px">
+      <h2 class="mem">Análisis de cargas</h2>
+
+      <h3 class="mem">Cargas muertas</h3>
+      <p class="mem-p">Se utilizará vigueta y bovedilla como sistema estructural para las losas de entrepiso
+      y azotea; por lo tanto, la carga muerta obtenida por el peso propio de la losa se obtuvo como sigue:</p>
+      <table class="mem" style="max-width:360px">
         <tr><th>Concepto</th><th>Carga (kg/m²)</th></tr>
         <tr><td>Vigueta y bovedilla</td><td class="num">144.0</td></tr>
         <tr><td>Sobrecarga</td><td class="num">40.0</td></tr>
         <tr><td>Piso</td><td class="num">30.0</td></tr>
         <tr><td>Yeso</td><td class="num">22.5</td></tr>
-        <tr><td><b>Total CM losa</b></td><td class="num"><b>${_t(t.cmEntrepiso)}</b></td></tr>
+        <tr><td><b>Total</b></td><td class="num"><b>${_t(t.cmEntrepiso)}</b></td></tr>
       </table>
-      <p class="mem-p">Muros de block: ${_t(t.cmMuro)} kg/m². El peso propio de trabes y columnas se
-      determina con un peso específico de 2400 kg/m³.</p>
-      <h3 class="mem">3.2 Cargas vivas (CV)</h3>
-      <p class="mem-p">De acuerdo con las Normas Técnicas Complementarias, para vivienda se consideran
-      cargas vivas de ${_t(t.cvEntrepiso)} kg/m² en losas de entrepiso y ${_t(t.cvAzotea)} kg/m²
-      en azotea con pendiente menor al 5%.</p>
-      ${Ct(t)}
-    </div>
+      <p class="mem-p">En cuanto a los muros se propone block, por lo tanto, su peso unitario es de
+      ${_t(t.cmMuro)} kg/m². El peso propio de los elementos estructurales como trabes y columnas se
+      determina considerando un peso específico de 2400 kg/m³.</p>
 
-    \x3C!-- 4. ESTADOS DE CARGA -->
-    <div class="mem-sec">
-      <h2 class="mem">4. Estados de carga (combinaciones)</h2>
-      <p class="mem-p">Las combinaciones de carga empleadas conforme a ${_t(t.norma)} son:</p>
+      <h3 class="mem">Cargas vivas</h3>
+      <p class="mem-p">Se consideraron las cargas vivas para casa habitación dentro de las Normas Técnicas
+      Complementarias (NTC, 2017), donde se especifica que para losas de entrepiso son ${_t(t.cvEntrepiso)}
+      kg/m² y para azotea con pendientes menores al 5% se consideran de ${_t(t.cvAzotea)} kg/m². La
+      distribución de carga de las losas se realizó considerando la orientación de la vigueta y bovedilla
+      propuesta; debido a la naturaleza del sistema las cargas se transmiten en una sola dirección.</p>
+
+      <h3 class="mem">Estados de carga</h3>
+      <p class="mem-p">Las combinaciones de carga a utilizar según las Normas Técnicas Complementarias
+      (${_t(t.norma)}) son las siguientes:</p>
       <ul class="mem">
-        <li><b>Estado límite de servicio:</b> CM + CV</li>
-        <li><b>Estado límite de falla (diseño):</b> 1.3 CM + 1.5 CV</li>
+        <li>Estado límite de servicio: CV + CM</li>
+        <li>Estado límite de diseño: 1.3 CM + 1.5 CV</li>
       </ul>
-      <p class="mem-p" style="color:#6b7280;font-size:10pt">CM: carga muerta (permanente) · CV: carga viva (variable).
-      Los momentos y cortantes últimos empleados en el diseño provienen del análisis del modelo estructural
-      bajo la combinación de falla.</p>
-      ${Ct(t)}
-    </div>
+      <p class="mem-p">CV: Carga viva (Variable). CM: Carga muerta (Permanente).</p>
 
-    \x3C!-- 5. NORMATIVA -->
-    <div class="mem-sec">
-      <h2 class="mem">5. Normatividad de diseño</h2>
+      <h3 class="mem">Normativas de diseño</h3>
       <ul class="mem">
-        <li>Normas Técnicas Complementarias para Diseño y Construcción de Estructuras de Concreto (${_t(t.norma)}).</li>
-        <li>American Concrete Institute — ACI 318-19.</li>
+        <li>Normas Técnicas Complementarias (${_t(t.norma)}).</li>
+        <li>American Concrete Institute (ACI 318-19).</li>
       </ul>
-      <p class="mem-p">El diseño de los elementos de concreto reforzado se realizó por el método de diseño
-      por resistencia (estados límite).</p>
       ${Ct(t)}
     </div>
 
-    \x3C!-- 6. DISEÑO DE TRABES -->
+    \x3C!-- DISEÑO -->
     <div class="mem-sec">
-      <h2 class="mem">6. Diseño de trabes</h2>
-      <p class="mem-p">A partir del análisis estructural se obtuvieron los momentos y cortantes de diseño
-      de cada trabe. La siguiente tabla resume las ${e.length} sección(es) consideradas; el detalle
-      del diseño por resistencia se presenta a continuación${t.detalleTodos?` para cada elemento`:`, con desarrollo completo de la trabe gobernante`}.</p>
-      ${wt(l)}
+      <h2 class="mem">Diseño</h2>
+
+      <h3 class="mem">Diseño de trabes y columnas</h3>
+      <p class="mem-p">Se construyó un modelo analítico de la estructura, del cual, mediante su análisis, se
+      obtuvieron los momentos y cortantes de diseño como parámetros para las vigas; en cuanto a las columnas
+      se obtuvieron las cargas axiales críticas y sus respectivos momentos de diseño. Además, para realizar la
+      revisión por estado límite de servicio según las NTC 2023, se obtuvieron las deflexiones máximas.</p>
+
+      <h3 class="mem">Estado límite de diseño</h3>
+      <p class="mem-p">De acuerdo con la revisión de momentos, ésta es la condición dominante en la revisión
+      por estado límite de diseño, ya que los cortantes y las deflexiones se encontraron en rangos aceptables.
+      ${s>=0?`El momento crítico de la estructura se presenta en la trabe <b>${_}</b>, con un valor de <b>${vt(c,2)} ton·m</b>. `:``}Considerando
+      los momentos obtenidos del análisis se realizó el diseño por resistencia, el cual se describe a
+      continuación. La siguiente tabla resume las ${e.length} trabe(s) consideradas:</p>
+      ${wt(l,a)}
       ${Ct(t)}
     </div>
-    ${m}
+    ${h}
 
-    \x3C!-- 7. COLUMNAS (placeholder) -->
+    \x3C!-- DISEÑO — servicio / columnas / cimentación -->
     <div class="mem-sec">
-      <h2 class="mem">7. Diseño de columnas</h2>
+      <h3 class="mem">Estado límite de servicio</h3>
+      <p class="mem-p">El estado límite de servicio se revisó conforme a las NTC 2023, las cuales establecen
+      que la deflexión vertical máxima permisible está en función de la longitud de los elementos
+      (L/240, siendo L la longitud del elemento horizontal). Las deflexiones actuantes obtenidas del modelo
+      resultaron menores a las permisibles, por lo que el diseño propuesto es aceptable.</p>
+
+      <h3 class="mem">Diseño de columnas</h3>
       <div class="placeholder">
         <b>Sección en desarrollo.</b><br>
-        Aquí se integrará el diseño de columnas por <b>flexocompresión</b>
-        (elementos mecánicos actuantes Pu, Mu; resistencia P-M; detalle de armado).<br>
+        La columna más crítica presenta momento, por lo que se llevará a cabo un diseño de
+        <b>flexocompresión</b> a partir de la carga axial (Pu) y el momento (Mu) últimos obtenidos del
+        análisis, con la respectiva revisión de la resistencia P-M y el detalle de armado.<br>
         <span style="font-size:9.5pt">Pendiente de captura — se completará con el módulo de columnas.</span>
       </div>
-      ${Ct(t)}
-    </div>
 
-    \x3C!-- 8. CIMENTACIÓN (placeholder) -->
-    <div class="mem-sec">
-      <h2 class="mem">8. Diseño de cimentación</h2>
+      <h3 class="mem">Diseño de cimentación</h3>
       <div class="placeholder">
         <b>Sección en desarrollo.</b><br>
-        Aquí se integrará la revisión de la cimentación (zapatas aisladas y corridas, contratrabes).<br>
+        Se realizará la revisión del diseño de cimentación a base de zapatas aisladas y corridas y
+        contratrabes.<br>
         <span style="font-size:9.5pt">Pendiente de captura.</span>
       </div>
       ${Ct(t)}
@@ -337,18 +347,18 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
 
     ${Tt(n,t,a)}
 
-    \x3C!-- 10. ANEXOS -->
+    \x3C!-- ANEXOS -->
     <div class="mem-sec">
-      <h2 class="mem">10. Anexos</h2>
-      <p class="mem-p">Se anexan los planos de estructuración (planta alta, azotea y cimentación) y el
-      reporte de elementos mecánicos del modelo estructural.</p>
-      <div class="placeholder"><b>Planos de estructuración</b> — adjuntar.</div>
+      <h2 class="mem">Anexos</h2>
+      <p class="mem-p">Planos de estructuración.</p>
+      <div class="placeholder">Planos de estructuración (planta alta, azotea y cimentación) y reporte de
+      momentos y cortantes del modelo estructural — <b>adjuntar</b>.</div>
 
       <div class="firma">
         <p class="mem-p" style="text-align:center;margin-bottom:50px">ATENTAMENTE</p>
         <div class="line"></div>
         <div style="font-weight:700;font-size:11.5pt">Ing. ${_t(t.responsable||`________________________`)}</div>
-        ${t.cedula?`<div style="font-size:10pt;color:#6b7280">Cédula profesional: ${_t(t.cedula)}</div>`:``}
+        ${t.cedula?`<div style="font-size:10pt;color:#6b7280">Cédula: ${_t(t.cedula)}</div>`:``}
       </div>
       ${Ct(t)}
     </div>`}function Ot(e,t=400,n=300){return new Promise((r,i)=>{let a=e.includes(`xmlns=`)?e:e.replace(`<svg`,`<svg xmlns="http://www.w3.org/2000/svg"`),o=URL.createObjectURL(new Blob([a],{type:`image/svg+xml;charset=utf-8`})),s=new Image;s.onload=()=>{let e=s.width||t,a=s.height||n,c=document.createElement(`canvas`);c.width=Math.round(e*2),c.height=Math.round(a*2);let l=c.getContext(`2d`);l.fillStyle=`#fff`,l.fillRect(0,0,c.width,c.height),l.scale(2,2),l.drawImage(s,0,0,e,a),URL.revokeObjectURL(o);try{r(c.toDataURL(`image/png`))}catch(e){i(e)}},s.onerror=e=>{URL.revokeObjectURL(o),i(e)},s.src=o})}function kt({sections:e=[],meta:t={},dcheck:n=null}={}){let r=Et(t),i=Dt({sections:e,M:r,dcheck:n,renderFig:e=>`<div class="sec-svg">${gt(e)}</div>`,logoSrc:`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(ot)))}`}),a=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
@@ -375,6 +385,9 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     .mem-sec { page-break-before:auto; }
     .mem-cover { page-break-after:always; }
     .mem-trabe { page-break-before:always; }
+    /* Wide tables: smaller text so they fit the page width in Word */
+    table.mem th, table.mem td { font-size:8.5pt; padding:4px 5px; overflow-wrap:break-word; word-break:break-word; }
+    .mark-pill { font-size:7.5pt; padding:1px 4px; }
   `,c=`<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word"
     xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">
