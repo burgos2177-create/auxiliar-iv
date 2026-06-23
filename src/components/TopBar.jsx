@@ -38,6 +38,21 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
   const currentLabel = SCALE_PRESETS.find((p) => p.value === dxfScale)?.label
     || (dxfScale >= 1 ? `1:${dxfScale}` : `${Math.round(1 / dxfScale)}:1`)
 
+  // Abre Double Check Estructural en una ventana aparte, centrada.
+  // Target con nombre fijo: reutiliza/enfoca la misma ventana en clics sucesivos.
+  const openDoubleCheck = () => {
+    const w = Math.min(1440, window.screen.availWidth)
+    const h = Math.min(900, window.screen.availHeight)
+    const left = Math.max(0, (window.screen.availWidth - w) / 2)
+    const top = Math.max(0, (window.screen.availHeight - h) / 2)
+    const win = window.open(
+      'double_check_estructural.html',
+      'iv_doublecheck',
+      `width=${w},height=${h},left=${left},top=${top}`,
+    )
+    win?.focus()
+  }
+
   return (
     <header className="flex items-center gap-3 px-4 py-2 border-b"
       style={{ borderColor: 'var(--color-border)', background: 'var(--color-panel)', minHeight: 48 }}>
@@ -132,6 +147,30 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
           </div>
         )}
       </div>
+
+      {/* Double Check — abre la herramienta en ventana aparte */}
+      <button
+        className="btn"
+        onClick={openDoubleCheck}
+        style={{
+          fontSize: 12, padding: '5px 12px', flexShrink: 0,
+          background: 'var(--color-accent)', color: '#0d1117', fontWeight: 600,
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = '#49b09a'}
+        onMouseLeave={(e) => e.currentTarget.style.background = 'var(--color-accent)'}
+        title="Abrir Double Check Estructural en ventana aparte"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 12l4 4L13 6" />
+          <path d="M11 16l4 4L23 8" />
+        </svg>
+        Double Check
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 1 }}>
+          <path d="M14 3h7v7" />
+          <path d="M10 14L21 3" />
+          <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+        </svg>
+      </button>
 
       <div style={{ width: 1, height: 24, background: 'var(--color-border)', flexShrink: 0 }} />
 
