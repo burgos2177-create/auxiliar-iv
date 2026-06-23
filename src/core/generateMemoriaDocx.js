@@ -171,7 +171,8 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
   // Match .dcheck by beam name → ONLY the structural-model images
   // (slot A = momento del modelo, slot C = cortante del modelo).
   // The tool screenshots (slots B y D) are intentionally excluded.
-  const norm = (s) => String(s || '').trim().toLowerCase()
+  // Lenient: ignore case, spaces and dashes ("T 1" / "t-1" / "T1" → "t1").
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
   const dcByName = new Map()
   for (const s of ((dcheck && dcheck.sections) || [])) if (s?.name) dcByName.set(norm(s.name), s)
   const modelImgs = await Promise.all(computed.map(async ({ t }) => {
