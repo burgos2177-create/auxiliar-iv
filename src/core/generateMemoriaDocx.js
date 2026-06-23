@@ -73,36 +73,39 @@ function dataTable(headers, rowsData, colW, { size = 17, headFill = INK } = {}) 
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, columnWidths: colW, rows: [head, ...body] })
 }
 
-// ── calc rows ──
-function flexRows(res, Mu, fc) {
+// ── calc rows (con sustitución numérica) ──
+function flexRows(res, Mu, fc, fy, b, h, r) {
   const fcRed = 0.85 * fc
+  const MuKg = Mu * 100000
+  const d = res.d
   return [
     ["f''c", "0.85 · f'c", `0.85 × ${fc}`, `${fmt(fcRed, 1)} kg/cm²`],
-    ['d', 'h − r', '', `${fmt(res.d, 1)} cm`],
-    ['Rn', 'Mu / (FR · b · d²)', '', `${fmt(res.Rn, 3)} kg/cm²`],
-    ['ρ', "(f''c/fy)·[1−√(1−2Rn/f''c)]", '', fmt(res.rhoCalc, 5)],
-    ['As calc', 'ρ · b · d', '', `${fmt(res.AsCalc, 2)} cm²`],
-    ['As mín', "0.7·√f'c/fy · b · d", '', `${fmt(res.AsMin, 2)} cm²`],
-    ['As máx', '0.90 · ρ_bal · b · d', '', `${fmt(res.AsMax, 2)} cm²`],
-    ['As requerido', 'máx(As_calc, As_mín)', '', `${fmt(res.AsReq, 2)} cm²`],
+    ['d', 'h − r', `${h} − ${r}`, `${fmt(d, 1)} cm`],
+    ['Rn', 'Mu / (FR · b · d²)', `${fmt(MuKg, 0)} / (0.9 × ${b} × ${fmt(d, 1)}²)`, `${fmt(res.Rn, 3)} kg/cm²`],
+    ['ρ', "(f''c/fy)·[1−√(1−2Rn/f''c)]", `(${fmt(fcRed, 1)}/${fy})·[1−√(1−2×${fmt(res.Rn, 3)}/${fmt(fcRed, 1)})]`, fmt(res.rhoCalc, 5)],
+    ['As calc', 'ρ · b · d', `${fmt(res.rhoCalc, 5)} × ${b} × ${fmt(d, 1)}`, `${fmt(res.AsCalc, 2)} cm²`],
+    ['As mín', "0.7·√f'c/fy · b · d", `0.7·√${fc}/${fy} × ${b} × ${fmt(d, 1)}`, `${fmt(res.AsMin, 2)} cm²`],
+    ['As máx', '0.90 · ρ_bal · b · d', `0.90 × ${fmt(res.rhoBal, 5)} × ${b} × ${fmt(d, 1)}`, `${fmt(res.AsMax, 2)} cm²`],
+    ['As requerido', 'máx(As_calc, As_mín)', `máx(${fmt(res.AsCalc, 2)}, ${fmt(res.AsMin, 2)})`, `${fmt(res.AsReq, 2)} cm²`],
     ['Armado', '—', '—', `${res.nUsed} #${res.vr.num}${res.nBastones > 0 ? ` + ${res.nBastones} #${res.vb.num}` : ''}`],
-    ['As total', 'As_barras + As_bastones', '', `${fmt(res.AsTotal, 2)} cm²`],
-    ['MRT', 'FR · As · fy · (d − a/2)', '', [run(`${fmt(res.MRT, 2)} t·m`, { size: 17 }), okRun(res.okMR), run(`  (Mu = ${fmt(Mu, 2)})`, { size: 15, color: GREY })]],
-    ['b mín', '2r + (2n−1) · Ø', '', [run(`${fmt(res.bMin, 1)} cm`, { size: 17 }), okRun(res.okBmin)]],
+    ['As total', 'As_barras + As_bastones', `${fmt(res.AsBarras, 2)} + ${fmt(res.AsBastones, 2)}`, `${fmt(res.AsTotal, 2)} cm²`],
+    ['MRT', 'FR · As · fy · (d − a/2)', `0.9 × ${fmt(res.AsTotal, 2)} × ${fy} × (${fmt(d, 1)} − ${fmt(res.a, 2)}/2)`, [run(`${fmt(res.MRT, 2)} t·m`, { size: 17 }), okRun(res.okMR), run(`  (Mu = ${fmt(Mu, 2)})`, { size: 15, color: GREY })]],
+    ['b mín', '2r + (2n−1) · Ø', `2×${r} + (2×${res.nUsed}−1) × ${fmt(res.vr.diam, 3)}`, [run(`${fmt(res.bMin, 1)} cm`, { size: 17 }), okRun(res.okBmin)]],
   ]
 }
-function cortRows(resC, VuTon, b) {
+function cortRows(resC, VuTon, fc, fy, b, h, r, L, AsUsada, nramas) {
+  const d = resC.d
   return [
-    ['d', 'h − r', '', `${fmt(resC.d, 1)} cm`],
-    ['L/h', 'L / h', '', fmt(resC.lh, 2)],
-    ['ρ', 'As / (b · d)', '', fmt(resC.rho, 5)],
-    ['VCR', 'máx(VCR_a, VCR_b) acotado', '', `${fmt(resC.Vcr, 2)} t`],
-    ['Va_max', "VCR + FR·2.2·√f'c·b·d", '', [run(`${fmt(resC.VaMax, 2)} t`, { size: 17 }), okRun(resC.okVaMax)]],
-    ['VSR nec.', 'Vu − VCR', '', `${fmt(resC.VsrNec, 2)} t`],
-    ['Av', 'n_ramas · A_estribo', '', `${fmt(resC.Av, 2)} cm²`],
-    ['Separación S', 'FR · Av · fy · d / VSR_nec', '', `${resC.Suso} cm`],
+    ['d', 'h − r', `${h} − ${r}`, `${fmt(d, 1)} cm`],
+    ['L/h', 'L / h', `${fmt(L * 100, 0)} / ${h}`, fmt(resC.lh, 2)],
+    ['ρ', 'As / (b · d)', `${fmt(AsUsada, 2)} / (${b} × ${fmt(d, 1)})`, fmt(resC.rho, 5)],
+    ['VCR', 'máx(VCR_a, VCR_b) acotado', `máx(${fmt(resC.VCR_a, 2)}, ${fmt(resC.VCR_b, 2)}) t`, `${fmt(resC.Vcr, 2)} t`],
+    ['Va_max', "VCR + FR·2.2·√f'c·b·d", `${fmt(resC.Vcr, 2)} + 0.75·2.2·√${fc}·${b}·${fmt(d, 1)}`, [run(`${fmt(resC.VaMax, 2)} t`, { size: 17 }), okRun(resC.okVaMax)]],
+    ['VSR nec.', 'Vu − VCR', `${fmt(VuTon, 2)} − ${fmt(resC.Vcr, 2)}`, `${fmt(resC.VsrNec, 2)} t`],
+    ['Av', 'n_ramas · A_estribo', `${nramas} × ${resC.ve?.area}`, `${fmt(resC.Av, 2)} cm²`],
+    ['Separación S', 'FR · Av · fy · d / VSR_nec', `0.75 × ${fmt(resC.Av, 2)} × ${fy} × ${fmt(d, 1)} / ${fmt(resC.VsrNec * 1000, 0)}`, `${resC.Suso} cm`],
     ['Estribos', '—', '—', `#${resC.ve?.num ?? ''} @ ${resC.Suso} cm`],
-    ['Vr', 'VCR + VSR', '', [run(`${fmt(resC.Vr, 2)} t`, { size: 17 }), okRun(resC.okVr), run(`  (Vu = ${fmt(VuTon, 2)})`, { size: 15, color: GREY })]],
+    ['Vr', 'VCR + VSR', `${fmt(resC.Vcr, 2)} + ${fmt(resC.VsrReal, 2)}`, [run(`${fmt(resC.Vr, 2)} t`, { size: 17 }), okRun(resC.okVr), run(`  (Vu = ${fmt(VuTon, 2)})`, { size: 15, color: GREY })]],
   ]
 }
 const CALC_COLS = [2000, 3400, 2400, 1839]
@@ -203,17 +206,17 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
     }
     if (R.MuP > 0 && R.resP) {
       trabeBlocks.push(para([run('Momento positivo (M+) — lecho inferior', { bold: true, color: '1D4ED8' })], { after: 60 }))
-      trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resP, R.MuP, R.fc), CALC_COLS))
+      trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resP, R.MuP, R.fc, R.fy, R.b, R.h, R.r), CALC_COLS))
       trabeBlocks.push(para('', { after: 80 }))
     }
     if (R.MuN > 0 && R.resN) {
       trabeBlocks.push(para([run('Momento negativo (M−) — lecho superior', { bold: true, color: 'B45309' })], { after: 60 }))
-      trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resN, R.MuN, R.fc), CALC_COLS))
+      trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resN, R.MuN, R.fc, R.fy, R.b, R.h, R.r), CALC_COLS))
       trabeBlocks.push(para('', { after: 80 }))
     }
     if (R.hasCort && R.VuTon > 0) {
       trabeBlocks.push(para([run('Revisión por cortante', { bold: true, color: '9333EA' })], { after: 60 }))
-      trabeBlocks.push(dataTable(CALC_HEAD, cortRows(R.resC, R.VuTon, R.b), CALC_COLS))
+      trabeBlocks.push(dataTable(CALC_HEAD, cortRows(R.resC, R.VuTon, R.fc, R.fy, R.b, R.h, R.r, R.L, R.AsUsada, R.nramas), CALC_COLS))
     }
   })
 
