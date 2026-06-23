@@ -168,6 +168,20 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
     try { return await prep(await svgToPng(sectionSvgString(t)), 360) } catch { return null }
   }))
 
+  // Match .dcheck by beam name → ONLY the structural-model images
+  // (slot A = momento del modelo, slot C = cortante del modelo).
+  // The tool screenshots (slots B y D) are intentionally excluded.
+  const norm = (s) => String(s || '').trim().toLowerCase()
+  const dcByName = new Map()
+  for (const s of ((dcheck && dcheck.sections) || [])) if (s?.name) dcByName.set(norm(s.name), s)
+  const modelImgs = await Promise.all(computed.map(async ({ t }) => {
+    const s = dcByName.get(norm(t.nombre))
+    if (!s) return null
+    const mom = s.imgA ? await prep(s.imgA, 430) : null
+    const cort = s.imgC ? await prep(s.imgC, 430) : null
+    return (mom || cort) ? { mom, cort } : null
+  }))
+
   // ── Descriptive sentence per trabe ──
   const trabeFrase = (t, R) => {
     const arm = (res, n, cal) => res
@@ -202,61 +216,36 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
     if (figImgs[i]) trabeBlocks.push(imgPara(figImgs[i]))
     if (!R.hasData) {
       trabeBlocks.push(para('Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.', { run: { color: 'B45309', italics: true } }))
-      return
-    }
-    if (R.MuP > 0 && R.resP) {
-      trabeBlocks.push(para([run('Momento positivo (M+) — lecho inferior', { bold: true, color: '1D4ED8' })], { after: 60 }))
-      trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resP, R.MuP, R.fc, R.fy, R.b, R.h, R.r), CALC_COLS))
-      trabeBlocks.push(para('', { after: 80 }))
-    }
-    if (R.MuN > 0 && R.resN) {
-      trabeBlocks.push(para([run('Momento negativo (M−) — lecho superior', { bold: true, color: 'B45309' })], { after: 60 }))
-      trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resN, R.MuN, R.fc, R.fy, R.b, R.h, R.r), CALC_COLS))
-      trabeBlocks.push(para('', { after: 80 }))
-    }
-    if (R.hasCort && R.VuTon > 0) {
-      trabeBlocks.push(para([run('Revisión por cortante', { bold: true, color: '9333EA' })], { after: 60 }))
-      trabeBlocks.push(dataTable(CALC_HEAD, cortRows(R.resC, R.VuTon, R.fc, R.fy, R.b, R.h, R.r, R.L, R.AsUsada, R.nramas), CALC_COLS))
-    }
-  })
-
-  // ── Double Check section ──
-  const dcBlocks = []
-  const dcSecs = (dcheck && dcheck.sections) || []
-  if (dcSecs.length) {
-    dcBlocks.push(H1('Verificación cruzada (Double Check)'))
-    dcBlocks.push(para('Se realizó una verificación cruzada de los elementos confrontando las solicitaciones obtenidas del modelo estructural (actuantes) contra las resistencias del diseño (resistentes). El cociente demanda/capacidad se evalúa por el caso más desfavorable: VERIFICADO (≤ 0.90), REVISAR (≤ 1.00) o NO PASA (> 1.00).', { align: AlignmentType.JUSTIFIED }))
-    const ratioOf = (a, r) => { const A = parseFloat(a), R2 = parseFloat(r); return (isFinite(A) && isFinite(R2) && R2 !== 0) ? Math.abs(A / R2) : null }
-    const cellTxt = (a, r, ratio) => {
-      const base = `${a || a === 0 ? a : '—'} / ${r || r === 0 ? r : '—'}`
-      if (ratio == null) return base
-      return [run(base + ' ', { size: 16 }), run(`(${ratio.toFixed(2)})`, { size: 16, bold: true, color: ratio > 1 ? BADC : ratio > 0.9 ? 'B45309' : OKC })]
-    }
-    const dcHead = ['#', 'Elemento', 'M+ act/res', 'M− act/res', 'V act/res', 'Estado', 'Obs.']
-    const dcCols = [400, 1150, 1700, 1700, 1500, 1289, 1900]
-    const dcRows = dcSecs.map((s, i) => {
-      const rP = ratioOf(s.ma, s.mr), rN = ratioOf(s.man, s.mrn), rV = ratioOf(s.va, s.vr)
-      let mk = s.mark
-      if (!mk) { const w = [rP, rN, rV].filter((x) => x != null); const m = w.length ? Math.max(...w) : null; mk = m == null ? null : m <= 0.9 ? 'ok' : m <= 1 ? 'warn' : 'bad' }
-      const est = mk ? [run(MARKCOL[mk].t, { size: 14, bold: true, color: MARKCOL[mk].c })] : [run('—', { size: 16 })]
-      return [`${i + 1}`, s.name || '—', cellTxt(s.ma, s.mr, rP), cellTxt(s.man, s.mrn, rN), cellTxt(s.va, s.vr, rV), est, s.obs || '']
-    })
-    dcBlocks.push(dataTable(dcHead, dcRows, dcCols, { size: 16 }))
-
-    // Evidence screenshots
-    for (const s of dcSecs) {
-      const slots = [['Momento — modelo estructural', s.imgA], ['Momento — cálculo de diseño', s.imgB],
-        ['Cortante — modelo estructural', s.imgC], ['Cortante — cálculo de diseño', s.imgD]].filter(([, src]) => !!src)
-      if (!slots.length) continue
-      dcBlocks.push(para([run(`Evidencia — ${s.name || 'Elemento'}`, { bold: true, size: 21 })], { before: 120, after: 60 }))
-      for (const [cap, src] of slots) {
-        const im = await prep(src, 430)
-        if (!im) continue
-        dcBlocks.push(para([run(cap, { size: 16, italics: true, color: GREY })], { after: 20 }))
-        dcBlocks.push(imgPara(im))
+    } else {
+      if (R.MuP > 0 && R.resP) {
+        trabeBlocks.push(para([run('Momento positivo (M+) — lecho inferior', { bold: true, color: '1D4ED8' })], { after: 60 }))
+        trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resP, R.MuP, R.fc, R.fy, R.b, R.h, R.r), CALC_COLS))
+        trabeBlocks.push(para('', { after: 80 }))
+      }
+      if (R.MuN > 0 && R.resN) {
+        trabeBlocks.push(para([run('Momento negativo (M−) — lecho superior', { bold: true, color: 'B45309' })], { after: 60 }))
+        trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resN, R.MuN, R.fc, R.fy, R.b, R.h, R.r), CALC_COLS))
+        trabeBlocks.push(para('', { after: 80 }))
+      }
+      if (R.hasCort && R.VuTon > 0) {
+        trabeBlocks.push(para([run('Revisión por cortante', { bold: true, color: '9333EA' })], { after: 60 }))
+        trabeBlocks.push(dataTable(CALC_HEAD, cortRows(R.resC, R.VuTon, R.fc, R.fy, R.b, R.h, R.r, R.L, R.AsUsada, R.nramas), CALC_COLS))
       }
     }
-  }
+    // Imágenes del modelo estructural para esta viga (momento y cortante)
+    const mi = modelImgs[i]
+    if (mi && (mi.mom || mi.cort)) {
+      trabeBlocks.push(para([run('Elementos mecánicos del modelo estructural', { bold: true, size: 21, color: '1F2937' })], { before: 140, after: 60 }))
+      if (mi.mom) {
+        trabeBlocks.push(para([run(`Diagrama de momento — ${t.nombre || 'viga'} (modelo)`, { size: 16, italics: true, color: GREY })], { after: 20 }))
+        trabeBlocks.push(imgPara(mi.mom))
+      }
+      if (mi.cort) {
+        trabeBlocks.push(para([run(`Diagrama de cortante — ${t.nombre || 'viga'} (modelo)`, { size: 16, italics: true, color: GREY })], { after: 20 }))
+        trabeBlocks.push(imgPara(mi.cort))
+      }
+    }
+  })
 
   // ── Intro text ──
   const introTxt = M.descripcion?.trim()
@@ -334,8 +323,6 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
     para([run('[Sección en desarrollo] ', { bold: true, color: 'B45309' }), run('La columna más crítica presenta momento, por lo que se llevará a cabo un diseño de flexocompresión a partir de la carga axial (Pu) y el momento (Mu) últimos obtenidos del análisis, con la respectiva revisión de la resistencia P-M y el detalle de armado. Pendiente de captura — se completará con el módulo de columnas.')], { align: AlignmentType.JUSTIFIED }),
     H2('Diseño de cimentación'),
     para([run('[Sección en desarrollo] ', { bold: true, color: 'B45309' }), run('Se realizará la revisión del diseño de cimentación a base de zapatas aisladas y corridas y contratrabes. Pendiente de captura.')], { align: AlignmentType.JUSTIFIED }),
-
-    ...dcBlocks,
 
     H1('Anexos'),
     para('Planos de estructuración.'),
