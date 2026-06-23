@@ -377,7 +377,10 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     .data-grid { display:block; }
     .data-grid div { display:inline-block; margin-right:18px; }
     .shots { display:block; }
-    .paso, .det-wrap, .shots { break-inside:auto; page-break-inside:auto; }
+    .paso, .det-wrap, .shots, .paso-b, .linea { break-inside:auto; page-break-inside:auto; }
+    /* overflow:hidden makes Word treat the box as a floating frame that
+       paginates alone — force visible so the steps flow inline. */
+    .paso, .shot { overflow:visible; }
     .sec-svg img { width:440px; max-width:440px; }
     img { max-width:17cm; }
     /* Flow continuously: don't force a page per section (avoids near-empty
