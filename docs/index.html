@@ -207,7 +207,7 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     </table>
     ${a}
     ${Ct(t)}
-  </div>`}function Et(e){return{norma:`NTC-2023`,proyecto:``,ubicacion:``,area:``,niveles:``,hEntrepiso:``,responsable:``,cedula:``,fecha:new Date().toLocaleDateString(`es-MX`),descripcion:``,cmEntrepiso:`236.5`,cmMuro:`249.4`,cvEntrepiso:`190`,cvAzotea:`100`,detalleTodos:!0,...e}}function Dt({sections:e,M:t,dcheck:n,renderFig:r,logoSrc:i,forWord:a=!1}){let o=e.map(e=>({t:e,R:ft(e)})),s=-1,c=-1;o.forEach(({R:e},t)=>{let n=Math.max(e.MuP||0,e.MuN||0);n>c&&(c=n,s=t)});let l=o.map(({t:e,R:t})=>({nombre:e.nombre,b:t.b,h:t.h,infTxt:t.resP?`${t.resP.nUsed}#${t.resP.vr.num}${t.resP.nBastones>0?`+${t.resP.nBastones}#${t.resP.vb.num}`:``}`:`${e.cantInf}#${e.calInf}`,supTxt:t.resN?`${t.resN.nUsed}#${t.resN.vr.num}${t.resN.nBastones>0?`+${t.resN.nBastones}#${t.resN.vb.num}`:``}`:`${e.cantSup}#${e.calSup}`,MuP:t.MuP,MRTP:t.resP?.MRT,MuN:t.MuN,MRTN:t.resN?.MRT,Vu:t.VuTon,Vr:t.resC?.Vr,okP:t.resP?t.resP.okMR:void 0,okN:t.resN?t.resN.okMR:void 0,okV:t.resC?t.resC.okVr:void 0,mark:t.hasData?t.allOk?`ok`:`bad`:null})),u=[...new Set(o.map(({R:e})=>e.fc))].sort((e,t)=>e-t),d=[...new Set(o.map(({R:e})=>e.fy))].sort((e,t)=>e-t),f=u.length?u.map(e=>`${e} kg/cm²`).join(`, `):`250 kg/cm²`,p=d.length?d.map(e=>`${e} kg/cm²`).join(`, `):`4200 kg/cm²`,m=o.map(({t:e,R:n},i)=>{let a=i===s,o=t.detalleTodos||a,u=r(e,n,i);return n.hasData?o?(n.MuP>0&&n.resP&&(u+=ut(n.resP,`▲ MOMENTO POSITIVO (M+) — Lecho inferior`,n.MuP,`#1d4ed8`,n.fc,n.fy,n.b,n.h,n.r)),n.MuN>0&&n.resN&&(u+=ut(n.resN,`▼ MOMENTO NEGATIVO (M−) — Lecho superior`,n.MuN,`#b45309`,n.fc,n.fy,n.b,n.h,n.r)),n.hasCort&&n.VuTon>0&&(u+=dt(n.resC,n.fc,n.fy,n.b,n.h,n.r,n.VuTon,n.L,n.AsUsada,n.varEstNum,n.nramas))):u+=Y(l[i]):u+=`<p class="mem-p" style="color:#92400e">Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.</p>`,`<div class="${i>0?`mem-sec`:``}">
+  </div>`}function Et(e){return{norma:`NTC-2023`,proyecto:``,ubicacion:``,area:``,niveles:``,hEntrepiso:``,responsable:``,cedula:``,fecha:new Date().toLocaleDateString(`es-MX`),descripcion:``,cmEntrepiso:`236.5`,cmMuro:`249.4`,cvEntrepiso:`190`,cvAzotea:`100`,detalleTodos:!0,...e}}function Dt({sections:e,M:t,dcheck:n,renderFig:r,logoSrc:i,forWord:a=!1}){let o=e.map(e=>({t:e,R:ft(e)})),s=-1,c=-1;o.forEach(({R:e},t)=>{let n=Math.max(e.MuP||0,e.MuN||0);n>c&&(c=n,s=t)});let l=o.map(({t:e,R:t})=>({nombre:e.nombre,b:t.b,h:t.h,infTxt:t.resP?`${t.resP.nUsed}#${t.resP.vr.num}${t.resP.nBastones>0?`+${t.resP.nBastones}#${t.resP.vb.num}`:``}`:`${e.cantInf}#${e.calInf}`,supTxt:t.resN?`${t.resN.nUsed}#${t.resN.vr.num}${t.resN.nBastones>0?`+${t.resN.nBastones}#${t.resN.vb.num}`:``}`:`${e.cantSup}#${e.calSup}`,MuP:t.MuP,MRTP:t.resP?.MRT,MuN:t.MuN,MRTN:t.resN?.MRT,Vu:t.VuTon,Vr:t.resC?.Vr,okP:t.resP?t.resP.okMR:void 0,okN:t.resN?t.resN.okMR:void 0,okV:t.resC?t.resC.okVr:void 0,mark:t.hasData?t.allOk?`ok`:`bad`:null})),u=[...new Set(o.map(({R:e})=>e.fc))].sort((e,t)=>e-t),d=[...new Set(o.map(({R:e})=>e.fy))].sort((e,t)=>e-t),f=u.length?u.map(e=>`${e} kg/cm²`).join(`, `):`250 kg/cm²`,p=d.length?d.map(e=>`${e} kg/cm²`).join(`, `):`4200 kg/cm²`,m=o.map(({t:e,R:n},i)=>{let a=i===s,o=t.detalleTodos||a,u=r(e,n,i);return n.hasData?o?(n.MuP>0&&n.resP&&(u+=ut(n.resP,`▲ MOMENTO POSITIVO (M+) — Lecho inferior`,n.MuP,`#1d4ed8`,n.fc,n.fy,n.b,n.h,n.r)),n.MuN>0&&n.resN&&(u+=ut(n.resN,`▼ MOMENTO NEGATIVO (M−) — Lecho superior`,n.MuN,`#b45309`,n.fc,n.fy,n.b,n.h,n.r)),n.hasCort&&n.VuTon>0&&(u+=dt(n.resC,n.fc,n.fy,n.b,n.h,n.r,n.VuTon,n.L,n.AsUsada,n.varEstNum,n.nramas))):u+=Y(l[i]):u+=`<p class="mem-p" style="color:#92400e">Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.</p>`,`<div class="${i>0?`mem-sec mem-trabe`:``}">
       <h2 class="mem">6.${i+1} Trabe ${_t(e.nombre||`T-${i+1}`)}${a?` — gobernante`:``}</h2>
       ${a?`<p class="mem-p">Esta trabe rige el diseño por flexión con un momento último de
         <b>${vt(c,2)} t·m</b>. A continuación se presenta su diseño por resistencia
@@ -217,7 +217,7 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     </div>`}).join(``),h=t.descripcion?.trim()?_t(t.descripcion).replace(/\n/g,`<br>`):`Se realizó el diseño estructural de ${t.proyecto?`“${_t(t.proyecto)}”`:`la edificación`}${t.ubicacion?`, ubicada en ${_t(t.ubicacion)}`:``}${t.area?`, con aproximadamente ${_t(t.area)} m² de construcción`:``}.
        El sistema estructural se compone de elementos de concreto reforzado diseñados conforme a la normatividad vigente${t.niveles?`. La edificación consta de ${_t(t.niveles)} nivel(es)`:``}${t.hEntrepiso?` con una altura de entrepiso de ${_t(t.hEntrepiso)} m`:``}.`;return`
     \x3C!-- ░░ PORTADA ░░ -->
-    <div style="text-align:center;padding:55mm 0 40mm">
+    <div class="mem-cover" style="text-align:center;padding:55mm 0 40mm">
       <img width="120" src="${i}" style="width:120px;margin:0 auto 18px" alt="IV"/>
       <div style="font-size:11pt;letter-spacing:0.28em;color:#6b7280;text-transform:uppercase">IV Ingenierías</div>
       <h1 class="mem" style="font-size:30pt;margin:14px 0 6px">MEMORIA DE CÁLCULO</h1>
@@ -367,9 +367,14 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     .data-grid { display:block; }
     .data-grid div { display:inline-block; margin-right:18px; }
     .shots { display:block; }
-    .paso, .det-wrap { break-inside:auto; page-break-inside:auto; }
+    .paso, .det-wrap, .shots { break-inside:auto; page-break-inside:auto; }
     .sec-svg img { width:440px; max-width:440px; }
     img { max-width:17cm; }
+    /* Flow continuously: don't force a page per section (avoids near-empty
+       pages). Only the cover stands alone, and each trabe starts fresh. */
+    .mem-sec { page-break-before:auto; }
+    .mem-cover { page-break-after:always; }
+    .mem-trabe { page-break-before:always; }
   `,c=`<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word"
     xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">

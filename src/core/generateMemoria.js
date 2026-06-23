@@ -243,7 +243,7 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = f
       body += resultCard(rows[i])
     }
 
-    return `<div class="${i > 0 ? 'mem-sec' : ''}">
+    return `<div class="${i > 0 ? 'mem-sec mem-trabe' : ''}">
       <h2 class="mem">6.${i + 1} Trabe ${esc(t.nombre || `T-${i + 1}`)}${isGov ? ' — gobernante' : ''}</h2>
       ${isGov ? `<p class="mem-p">Esta trabe rige el diseño por flexión con un momento último de
         <b>${fmt(govMu, 2)} t·m</b>. A continuación se presenta su diseño por resistencia
@@ -261,7 +261,7 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = f
 
   return `
     <!-- ░░ PORTADA ░░ -->
-    <div style="text-align:center;padding:55mm 0 40mm">
+    <div class="mem-cover" style="text-align:center;padding:55mm 0 40mm">
       <img width="120" src="${logoSrc}" style="width:120px;margin:0 auto 18px" alt="IV"/>
       <div style="font-size:11pt;letter-spacing:0.28em;color:#6b7280;text-transform:uppercase">IV Ingenierías</div>
       <h1 class="mem" style="font-size:30pt;margin:14px 0 6px">MEMORIA DE CÁLCULO</h1>
@@ -483,9 +483,14 @@ export async function generateMemoriaWord({ sections = [], meta = {}, dcheck = n
     .data-grid { display:block; }
     .data-grid div { display:inline-block; margin-right:18px; }
     .shots { display:block; }
-    .paso, .det-wrap { break-inside:auto; page-break-inside:auto; }
+    .paso, .det-wrap, .shots { break-inside:auto; page-break-inside:auto; }
     .sec-svg img { width:440px; max-width:440px; }
     img { max-width:17cm; }
+    /* Flow continuously: don't force a page per section (avoids near-empty
+       pages). Only the cover stands alone, and each trabe starts fresh. */
+    .mem-sec { page-break-before:auto; }
+    .mem-cover { page-break-after:always; }
+    .mem-trabe { page-break-before:always; }
   `
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word"
