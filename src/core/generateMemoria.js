@@ -71,11 +71,14 @@ const MEM_CSS = `
   @media print { .no-print { display:none !important; } }
 `
 
+// Table-based footer (Word-safe — avoids flexbox)
 function brandFooter(meta) {
-  return `<div style="border-top:2px solid #4ecac4;padding-top:8px;margin-top:26px;font-size:8.5pt;color:#9ca3af;display:flex;justify-content:space-between">
-    <span>IV Ingenierías · ${esc(meta.norma)}</span>
-    <span>${esc(meta.proyecto || 'Memoria de cálculo')}</span>
-  </div>`
+  return `<table style="width:100%;border-collapse:collapse;border:none;border-top:2px solid #4ecac4;margin-top:24px;font-size:8.5pt;color:#9ca3af">
+    <tr>
+      <td style="border:none;padding:6px 0 0;text-align:left">IV Ingenierías · ${esc(meta.norma)}</td>
+      <td style="border:none;padding:6px 0 0;text-align:right">${esc(meta.proyecto || 'Memoria de cálculo')}</td>
+    </tr>
+  </table>`
 }
 
 // ── Trabes summary table ──────────────────────────────────────
@@ -119,7 +122,8 @@ function resultCard(r) {
 }
 
 // ── Double Check cross-verification section ───────────────────
-function doubleCheckSection(dcheck, meta) {
+// forWord → screenshots get a px width attribute and stack (Word can't grid)
+function doubleCheckSection(dcheck, meta, forWord = false) {
   const secs = (dcheck && dcheck.sections) || []
   if (!secs.length) return ''
 
@@ -152,9 +156,11 @@ function doubleCheckSection(dcheck, meta) {
       ['Cortante — cálculo de diseño', s.imgD],
     ].filter(([, src]) => !!src)
     if (!slots.length) return ''
-    return `<h3 class="mem">Evidencia — ${esc(s.name || 'Elemento')}</h3>
-      <div class="shots">${slots.map(([cap, src]) =>
-        `<div class="shot"><div class="cap">${esc(cap)}</div><img src="${src}" alt="${esc(cap)}"/></div>`).join('')}</div>`
+    const cells = slots.map(([cap, src]) => forWord
+      ? `<div style="margin:0 0 8px"><div style="font-size:9pt;font-weight:700;color:#374151;background:#f3f4f6;padding:3px 8px;border:1px solid #d1d5db;border-bottom:none">${esc(cap)}</div><img width="440" src="${src}" alt="${esc(cap)}" style="display:block;border:1px solid #d1d5db"/></div>`
+      : `<div class="shot"><div class="cap">${esc(cap)}</div><img src="${src}" alt="${esc(cap)}"/></div>`).join('')
+    return `<h3 class="mem">Evidencia — ${esc(s.name || 'Elemento')}</h3>` +
+      (forWord ? cells : `<div class="shots">${cells}</div>`)
   }).join('')
 
   const dcMeta = dcheck.meta || {}
@@ -192,7 +198,7 @@ function normalizeMeta(meta) {
   }
 }
 
-function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc }) {
+function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = false }) {
   // Pre-compute every section's results once
   const computed = sections.map((t) => ({ t, R: computeSectionResults(t) }))
 
@@ -256,7 +262,7 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc }) {
   return `
     <!-- ░░ PORTADA ░░ -->
     <div style="text-align:center;padding:55mm 0 40mm">
-      <img src="${logoSrc}" style="width:120px;margin:0 auto 18px" alt="IV"/>
+      <img width="120" src="${logoSrc}" style="width:120px;margin:0 auto 18px" alt="IV"/>
       <div style="font-size:11pt;letter-spacing:0.28em;color:#6b7280;text-transform:uppercase">IV Ingenierías</div>
       <h1 class="mem" style="font-size:30pt;margin:14px 0 6px">MEMORIA DE CÁLCULO</h1>
       <div style="font-size:13pt;color:#334155;margin-bottom:6px">Diseño estructural · Concreto reforzado</div>
@@ -373,7 +379,7 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc }) {
       ${brandFooter(M)}
     </div>
 
-    ${doubleCheckSection(dcheck, M)}
+    ${doubleCheckSection(dcheck, M, forWord)}
 
     <!-- 10. ANEXOS -->
     <div class="mem-sec">
@@ -457,18 +463,29 @@ export async function generateMemoriaWord({ sections = [], meta = {}, dcheck = n
   const figs = await Promise.all(sections.map(async (t) => {
     try { return await svgToPng(sectionSvgString(t)) } catch { return null }
   }))
+  // Word honors the HTML width attribute (px); CSS cm/% are unreliable
   const renderFig = (t, R, i) => (figs[i]
-    ? `<div class="sec-svg"><img src="${figs[i]}" style="width:10cm;height:auto" alt="Detalle ${esc(t.nombre)}"/></div>`
+    ? `<div class="sec-svg"><img width="440" src="${figs[i]}" alt="Detalle ${esc(t.nombre)}"/></div>`
     : '')
 
-  const body = buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc })
+  const body = buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord: true })
 
-  // Word-compatible HTML envelope (.doc) with page setup
+  // Word-compatible HTML envelope (.doc) with page setup.
+  // The override block neutralizes flex/grid (unsupported) and the
+  // break-inside:avoid rules that left near-empty pages, and bounds images.
   const wordCss = `
     @page Section1 { size:21cm 29.7cm; margin:2cm 2cm; }
     div.Section1 { page:Section1; }
     body { font-family:'Calibri',Arial,sans-serif; }
     ${DETAIL_CSS}${MEM_CSS}
+    /* ── Word overrides ── */
+    .paso-h { display:block; }
+    .data-grid { display:block; }
+    .data-grid div { display:inline-block; margin-right:18px; }
+    .shots { display:block; }
+    .paso, .det-wrap { break-inside:auto; page-break-inside:auto; }
+    .sec-svg img { width:440px; max-width:440px; }
+    img { max-width:17cm; }
   `
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word"

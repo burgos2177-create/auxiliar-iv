@@ -161,10 +161,12 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
   .no-print button { background:#1a7a5e; color:#fff; border:none; border-radius:8px; padding:10px 18px;
                      font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.2); }
   @media print { .no-print { display:none !important; } }
-`;function Ct(e){return`<div style="border-top:2px solid #4ecac4;padding-top:8px;margin-top:26px;font-size:8.5pt;color:#9ca3af;display:flex;justify-content:space-between">
-    <span>IV Ingenierías · ${_t(e.norma)}</span>
-    <span>${_t(e.proyecto||`Memoria de cálculo`)}</span>
-  </div>`}function wt(e){return`<table class="mem">
+`;function Ct(e){return`<table style="width:100%;border-collapse:collapse;border:none;border-top:2px solid #4ecac4;margin-top:24px;font-size:8.5pt;color:#9ca3af">
+    <tr>
+      <td style="border:none;padding:6px 0 0;text-align:left">IV Ingenierías · ${_t(e.norma)}</td>
+      <td style="border:none;padding:6px 0 0;text-align:right">${_t(e.proyecto||`Memoria de cálculo`)}</td>
+    </tr>
+  </table>`}function wt(e){return`<table class="mem">
     <tr><th>#</th><th>Trabe</th><th>b×h (cm)</th><th>Lecho inf.</th><th>Lecho sup.</th>
         <th>Mu+/MR+ (t·m)</th><th>Mu−/MR− (t·m)</th><th>Vu/Vr (t)</th><th>Estado</th></tr>
     ${e.map((e,t)=>{let n=e.mark?yt[e.mark]:null;return`<tr>
@@ -184,7 +186,7 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     ${t(`MR+ ≥ Mu+`,e.MuP,e.MRTP,e.okP)}
     ${t(`MR− ≥ Mu−`,e.MuN,e.MRTN,e.okN)}
     ${t(`Vr ≥ Vu`,e.Vu,e.Vr,e.okV)}
-  </div>`}function Tt(e,t){let n=e&&e.sections||[];if(!n.length)return``;let r=n.map((e,t)=>{let n=bt(e.ma,e.mr),r=bt(e.man,e.mrn),i=bt(e.va,e.vr),a=e.mark&&yt[e.mark]?e.mark:xt([n,r,i]),o=a?yt[a]:null,s=(e,t,n)=>`${e||e===0?_t(e):`—`} / ${t||t===0?_t(t):`—`}`+(n==null?``:` <b style="color:${n>1?`#b91c1c`:n>.9?`#92400e`:`#15803d`}">(${n.toFixed(2)})</b>`);return`<tr>
+  </div>`}function Tt(e,t,n=!1){let r=e&&e.sections||[];if(!r.length)return``;let i=r.map((e,t)=>{let n=bt(e.ma,e.mr),r=bt(e.man,e.mrn),i=bt(e.va,e.vr),a=e.mark&&yt[e.mark]?e.mark:xt([n,r,i]),o=a?yt[a]:null,s=(e,t,n)=>`${e||e===0?_t(e):`—`} / ${t||t===0?_t(t):`—`}`+(n==null?``:` <b style="color:${n>1?`#b91c1c`:n>.9?`#92400e`:`#15803d`}">(${n.toFixed(2)})</b>`);return`<tr>
       <td>${t+1}</td>
       <td><b>${_t(e.name||`—`)}</b></td>
       <td class="num">${s(e.ma,e.mr,n)}</td>
@@ -192,8 +194,7 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
       <td class="num">${s(e.va,e.vr,i)}</td>
       <td style="text-align:center">${o?`<span class="mark-pill" style="background:${o.bg};color:${o.color};border:1px solid ${o.bd}">${o.label}</span>`:`—`}</td>
       <td>${_t(e.obs||``)}</td>
-    </tr>`}).join(``),i=n.map(e=>{let t=[[`Momento — modelo estructural`,e.imgA],[`Momento — cálculo de diseño`,e.imgB],[`Cortante — modelo estructural`,e.imgC],[`Cortante — cálculo de diseño`,e.imgD]].filter(([,e])=>!!e);return t.length?`<h3 class="mem">Evidencia — ${_t(e.name||`Elemento`)}</h3>
-      <div class="shots">${t.map(([e,t])=>`<div class="shot"><div class="cap">${_t(e)}</div><img src="${t}" alt="${_t(e)}"/></div>`).join(``)}</div>`:``}).join(``);return`<div class="mem-sec">
+    </tr>`}).join(``),a=r.map(e=>{let t=[[`Momento — modelo estructural`,e.imgA],[`Momento — cálculo de diseño`,e.imgB],[`Cortante — modelo estructural`,e.imgC],[`Cortante — cálculo de diseño`,e.imgD]].filter(([,e])=>!!e);if(!t.length)return``;let r=t.map(([e,t])=>n?`<div style="margin:0 0 8px"><div style="font-size:9pt;font-weight:700;color:#374151;background:#f3f4f6;padding:3px 8px;border:1px solid #d1d5db;border-bottom:none">${_t(e)}</div><img width="440" src="${t}" alt="${_t(e)}" style="display:block;border:1px solid #d1d5db"/></div>`:`<div class="shot"><div class="cap">${_t(e)}</div><img src="${t}" alt="${_t(e)}"/></div>`).join(``);return`<h3 class="mem">Evidencia — ${_t(e.name||`Elemento`)}</h3>`+(n?r:`<div class="shots">${r}</div>`)}).join(``);return`<div class="mem-sec">
     <h2 class="mem">9. Verificación cruzada (Double Check)</h2>
     <p class="mem">Se realizó una verificación cruzada de los elementos confrontando las solicitaciones
     obtenidas del modelo estructural (actuantes) contra las resistencias del diseño (resistentes).
@@ -202,22 +203,22 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     <table class="mem">
       <tr><th>#</th><th>Elemento</th><th>M+ act/res (ratio)</th><th>M− act/res (ratio)</th>
           <th>V act/res (ratio)</th><th>Estado</th><th>Observaciones</th></tr>
-      ${r}
+      ${i}
     </table>
-    ${i}
+    ${a}
     ${Ct(t)}
-  </div>`}function Et(e){return{norma:`NTC-2023`,proyecto:``,ubicacion:``,area:``,niveles:``,hEntrepiso:``,responsable:``,cedula:``,fecha:new Date().toLocaleDateString(`es-MX`),descripcion:``,cmEntrepiso:`236.5`,cmMuro:`249.4`,cvEntrepiso:`190`,cvAzotea:`100`,detalleTodos:!0,...e}}function Dt({sections:e,M:t,dcheck:n,renderFig:r,logoSrc:i}){let a=e.map(e=>({t:e,R:ft(e)})),o=-1,s=-1;a.forEach(({R:e},t)=>{let n=Math.max(e.MuP||0,e.MuN||0);n>s&&(s=n,o=t)});let c=a.map(({t:e,R:t})=>({nombre:e.nombre,b:t.b,h:t.h,infTxt:t.resP?`${t.resP.nUsed}#${t.resP.vr.num}${t.resP.nBastones>0?`+${t.resP.nBastones}#${t.resP.vb.num}`:``}`:`${e.cantInf}#${e.calInf}`,supTxt:t.resN?`${t.resN.nUsed}#${t.resN.vr.num}${t.resN.nBastones>0?`+${t.resN.nBastones}#${t.resN.vb.num}`:``}`:`${e.cantSup}#${e.calSup}`,MuP:t.MuP,MRTP:t.resP?.MRT,MuN:t.MuN,MRTN:t.resN?.MRT,Vu:t.VuTon,Vr:t.resC?.Vr,okP:t.resP?t.resP.okMR:void 0,okN:t.resN?t.resN.okMR:void 0,okV:t.resC?t.resC.okVr:void 0,mark:t.hasData?t.allOk?`ok`:`bad`:null})),l=[...new Set(a.map(({R:e})=>e.fc))].sort((e,t)=>e-t),u=[...new Set(a.map(({R:e})=>e.fy))].sort((e,t)=>e-t),d=l.length?l.map(e=>`${e} kg/cm²`).join(`, `):`250 kg/cm²`,f=u.length?u.map(e=>`${e} kg/cm²`).join(`, `):`4200 kg/cm²`,p=a.map(({t:e,R:n},i)=>{let a=i===o,l=t.detalleTodos||a,u=r(e,n,i);return n.hasData?l?(n.MuP>0&&n.resP&&(u+=ut(n.resP,`▲ MOMENTO POSITIVO (M+) — Lecho inferior`,n.MuP,`#1d4ed8`,n.fc,n.fy,n.b,n.h,n.r)),n.MuN>0&&n.resN&&(u+=ut(n.resN,`▼ MOMENTO NEGATIVO (M−) — Lecho superior`,n.MuN,`#b45309`,n.fc,n.fy,n.b,n.h,n.r)),n.hasCort&&n.VuTon>0&&(u+=dt(n.resC,n.fc,n.fy,n.b,n.h,n.r,n.VuTon,n.L,n.AsUsada,n.varEstNum,n.nramas))):u+=Y(c[i]):u+=`<p class="mem-p" style="color:#92400e">Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.</p>`,`<div class="${i>0?`mem-sec`:``}">
+  </div>`}function Et(e){return{norma:`NTC-2023`,proyecto:``,ubicacion:``,area:``,niveles:``,hEntrepiso:``,responsable:``,cedula:``,fecha:new Date().toLocaleDateString(`es-MX`),descripcion:``,cmEntrepiso:`236.5`,cmMuro:`249.4`,cvEntrepiso:`190`,cvAzotea:`100`,detalleTodos:!0,...e}}function Dt({sections:e,M:t,dcheck:n,renderFig:r,logoSrc:i,forWord:a=!1}){let o=e.map(e=>({t:e,R:ft(e)})),s=-1,c=-1;o.forEach(({R:e},t)=>{let n=Math.max(e.MuP||0,e.MuN||0);n>c&&(c=n,s=t)});let l=o.map(({t:e,R:t})=>({nombre:e.nombre,b:t.b,h:t.h,infTxt:t.resP?`${t.resP.nUsed}#${t.resP.vr.num}${t.resP.nBastones>0?`+${t.resP.nBastones}#${t.resP.vb.num}`:``}`:`${e.cantInf}#${e.calInf}`,supTxt:t.resN?`${t.resN.nUsed}#${t.resN.vr.num}${t.resN.nBastones>0?`+${t.resN.nBastones}#${t.resN.vb.num}`:``}`:`${e.cantSup}#${e.calSup}`,MuP:t.MuP,MRTP:t.resP?.MRT,MuN:t.MuN,MRTN:t.resN?.MRT,Vu:t.VuTon,Vr:t.resC?.Vr,okP:t.resP?t.resP.okMR:void 0,okN:t.resN?t.resN.okMR:void 0,okV:t.resC?t.resC.okVr:void 0,mark:t.hasData?t.allOk?`ok`:`bad`:null})),u=[...new Set(o.map(({R:e})=>e.fc))].sort((e,t)=>e-t),d=[...new Set(o.map(({R:e})=>e.fy))].sort((e,t)=>e-t),f=u.length?u.map(e=>`${e} kg/cm²`).join(`, `):`250 kg/cm²`,p=d.length?d.map(e=>`${e} kg/cm²`).join(`, `):`4200 kg/cm²`,m=o.map(({t:e,R:n},i)=>{let a=i===s,o=t.detalleTodos||a,u=r(e,n,i);return n.hasData?o?(n.MuP>0&&n.resP&&(u+=ut(n.resP,`▲ MOMENTO POSITIVO (M+) — Lecho inferior`,n.MuP,`#1d4ed8`,n.fc,n.fy,n.b,n.h,n.r)),n.MuN>0&&n.resN&&(u+=ut(n.resN,`▼ MOMENTO NEGATIVO (M−) — Lecho superior`,n.MuN,`#b45309`,n.fc,n.fy,n.b,n.h,n.r)),n.hasCort&&n.VuTon>0&&(u+=dt(n.resC,n.fc,n.fy,n.b,n.h,n.r,n.VuTon,n.L,n.AsUsada,n.varEstNum,n.nramas))):u+=Y(l[i]):u+=`<p class="mem-p" style="color:#92400e">Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.</p>`,`<div class="${i>0?`mem-sec`:``}">
       <h2 class="mem">6.${i+1} Trabe ${_t(e.nombre||`T-${i+1}`)}${a?` — gobernante`:``}</h2>
       ${a?`<p class="mem-p">Esta trabe rige el diseño por flexión con un momento último de
-        <b>${vt(s,2)} t·m</b>. A continuación se presenta su diseño por resistencia
+        <b>${vt(c,2)} t·m</b>. A continuación se presenta su diseño por resistencia
         (estado límite de falla) y, en su caso, la revisión por cortante.</p>`:``}
       <div class="det-wrap">${u}</div>
       ${Ct(t)}
-    </div>`}).join(``),m=t.descripcion?.trim()?_t(t.descripcion).replace(/\n/g,`<br>`):`Se realizó el diseño estructural de ${t.proyecto?`“${_t(t.proyecto)}”`:`la edificación`}${t.ubicacion?`, ubicada en ${_t(t.ubicacion)}`:``}${t.area?`, con aproximadamente ${_t(t.area)} m² de construcción`:``}.
+    </div>`}).join(``),h=t.descripcion?.trim()?_t(t.descripcion).replace(/\n/g,`<br>`):`Se realizó el diseño estructural de ${t.proyecto?`“${_t(t.proyecto)}”`:`la edificación`}${t.ubicacion?`, ubicada en ${_t(t.ubicacion)}`:``}${t.area?`, con aproximadamente ${_t(t.area)} m² de construcción`:``}.
        El sistema estructural se compone de elementos de concreto reforzado diseñados conforme a la normatividad vigente${t.niveles?`. La edificación consta de ${_t(t.niveles)} nivel(es)`:``}${t.hEntrepiso?` con una altura de entrepiso de ${_t(t.hEntrepiso)} m`:``}.`;return`
     \x3C!-- ░░ PORTADA ░░ -->
     <div style="text-align:center;padding:55mm 0 40mm">
-      <img src="${i}" style="width:120px;margin:0 auto 18px" alt="IV"/>
+      <img width="120" src="${i}" style="width:120px;margin:0 auto 18px" alt="IV"/>
       <div style="font-size:11pt;letter-spacing:0.28em;color:#6b7280;text-transform:uppercase">IV Ingenierías</div>
       <h1 class="mem" style="font-size:30pt;margin:14px 0 6px">MEMORIA DE CÁLCULO</h1>
       <div style="font-size:13pt;color:#334155;margin-bottom:6px">Diseño estructural · Concreto reforzado</div>
@@ -235,7 +236,7 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     \x3C!-- 1. INTRODUCCIÓN -->
     <div class="mem-sec">
       <h2 class="mem">1. Introducción</h2>
-      <p class="mem-p">${m}</p>
+      <p class="mem-p">${h}</p>
       ${Ct(t)}
     </div>
 
@@ -243,9 +244,9 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     <div class="mem-sec">
       <h2 class="mem">2. Propiedades de los materiales</h2>
       <ul class="mem">
-        <li><b>Concreto estructural:</b> f'c = ${_t(d)}.</li>
+        <li><b>Concreto estructural:</b> f'c = ${_t(f)}.</li>
         <li><b>Concreto en elementos secundarios / plantilla:</b> f'c = 100 a 200 kg/cm².</li>
-        <li><b>Acero de refuerzo:</b> varilla corrugada ASTM-A615, fy = ${_t(f)}.</li>
+        <li><b>Acero de refuerzo:</b> varilla corrugada ASTM-A615, fy = ${_t(p)}.</li>
         <li><b>Peso volumétrico del concreto reforzado:</b> 2400 kg/m³.</li>
       </ul>
       ${Ct(t)}
@@ -306,10 +307,10 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
       <p class="mem-p">A partir del análisis estructural se obtuvieron los momentos y cortantes de diseño
       de cada trabe. La siguiente tabla resume las ${e.length} sección(es) consideradas; el detalle
       del diseño por resistencia se presenta a continuación${t.detalleTodos?` para cada elemento`:`, con desarrollo completo de la trabe gobernante`}.</p>
-      ${wt(c)}
+      ${wt(l)}
       ${Ct(t)}
     </div>
-    ${p}
+    ${m}
 
     \x3C!-- 7. COLUMNAS (placeholder) -->
     <div class="mem-sec">
@@ -334,7 +335,7 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
       ${Ct(t)}
     </div>
 
-    ${Tt(n,t)}
+    ${Tt(n,t,a)}
 
     \x3C!-- 10. ANEXOS -->
     <div class="mem-sec">
@@ -356,11 +357,19 @@ acotado a [VCR_min, VCR_max]`,vars:[`VCR_a`,`VCR_b`]},VaMax:{formula:`Va_max = V
     <body>
       <div class="no-print"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button></div>
       ${i}
-    </body></html>`,o=window.open(``,`_blank`);if(!o){alert(`Habilita las ventanas emergentes para ver la memoria.`);return}o.document.write(a),o.document.close()}async function At({sections:e=[],meta:t={},dcheck:n=null}={}){let r=Et(t),i;try{i=await Ot(ot,200,170)}catch{i=`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(ot)))}`}let a=await Promise.all(e.map(async e=>{try{return await Ot(gt(e))}catch{return null}})),o=Dt({sections:e,M:r,dcheck:n,renderFig:(e,t,n)=>a[n]?`<div class="sec-svg"><img src="${a[n]}" style="width:10cm;height:auto" alt="Detalle ${_t(e.nombre)}"/></div>`:``,logoSrc:i}),s=`
+    </body></html>`,o=window.open(``,`_blank`);if(!o){alert(`Habilita las ventanas emergentes para ver la memoria.`);return}o.document.write(a),o.document.close()}async function At({sections:e=[],meta:t={},dcheck:n=null}={}){let r=Et(t),i;try{i=await Ot(ot,200,170)}catch{i=`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(ot)))}`}let a=await Promise.all(e.map(async e=>{try{return await Ot(gt(e))}catch{return null}})),o=Dt({sections:e,M:r,dcheck:n,renderFig:(e,t,n)=>a[n]?`<div class="sec-svg"><img width="440" src="${a[n]}" alt="Detalle ${_t(e.nombre)}"/></div>`:``,logoSrc:i,forWord:!0}),s=`
     @page Section1 { size:21cm 29.7cm; margin:2cm 2cm; }
     div.Section1 { page:Section1; }
     body { font-family:'Calibri',Arial,sans-serif; }
     ${st}${St}
+    /* ── Word overrides ── */
+    .paso-h { display:block; }
+    .data-grid { display:block; }
+    .data-grid div { display:inline-block; margin-right:18px; }
+    .shots { display:block; }
+    .paso, .det-wrap { break-inside:auto; page-break-inside:auto; }
+    .sec-svg img { width:440px; max-width:440px; }
+    img { max-width:17cm; }
   `,c=`<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word"
     xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">
