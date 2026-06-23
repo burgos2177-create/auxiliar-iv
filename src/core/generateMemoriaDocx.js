@@ -111,6 +111,17 @@ function cortRows(resC, VuTon, fc, fy, b, h, r, L, AsUsada, nramas) {
 const CALC_COLS = [2000, 3400, 2400, 1839]
 const CALC_HEAD = ['Parámetro', 'Fórmula', 'Sustitución', 'Resultado']
 
+// Compact summary (used when "detallar todas" is OFF, for non-governing beams)
+function compactRows(R) {
+  const rows = []
+  if (R.resP) rows.push(['Momento positivo (M+)', `Mu = ${fmt(R.MuP)} t·m`, [run(`MR = ${fmt(R.resP.MRT)} t·m`, { size: 17 }), okRun(R.resP.okMR)]])
+  if (R.resN) rows.push(['Momento negativo (M−)', `Mu = ${fmt(R.MuN)} t·m`, [run(`MR = ${fmt(R.resN.MRT)} t·m`, { size: 17 }), okRun(R.resN.okMR)]])
+  if (R.resC && R.resC.Vr) rows.push(['Cortante', `Vu = ${fmt(R.VuTon)} t`, [run(`Vr = ${fmt(R.resC.Vr)} t`, { size: 17 }), okRun(R.resC.okVr)]])
+  return rows
+}
+const COMPACT_COLS = [3200, 3200, 3239]
+const COMPACT_HEAD = ['Revisión', 'Actuante', 'Resistente']
+
 // ── images ──
 function dataUrlToBytes(d) {
   const i = d.indexOf(',')
@@ -212,12 +223,13 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
   const trabeBlocks = []
   computed.forEach(({ t, R }, i) => {
     const isGov = i === govIdx
+    const full = M.detalleTodos || isGov
     trabeBlocks.push(H2(`Trabe ${t.nombre || `T-${i + 1}`}${isGov ? ' — gobernante' : ''}`, true))
     if (R.hasData) trabeBlocks.push(para(trabeFrase(t, R), { align: AlignmentType.JUSTIFIED }))
     if (figImgs[i]) trabeBlocks.push(imgPara(figImgs[i]))
     if (!R.hasData) {
       trabeBlocks.push(para('Sin datos de cálculo para esta sección — capture momentos y/o cortante en la pestaña Cálculo.', { run: { color: 'B45309', italics: true } }))
-    } else {
+    } else if (full) {
       if (R.MuP > 0 && R.resP) {
         trabeBlocks.push(para([run('Momento positivo (M+) — lecho inferior', { bold: true, color: '1D4ED8' })], { after: 60 }))
         trabeBlocks.push(dataTable(CALC_HEAD, flexRows(R.resP, R.MuP, R.fc, R.fy, R.b, R.h, R.r), CALC_COLS))
@@ -232,6 +244,9 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
         trabeBlocks.push(para([run('Revisión por cortante', { bold: true, color: '9333EA' })], { after: 60 }))
         trabeBlocks.push(dataTable(CALC_HEAD, cortRows(R.resC, R.VuTon, R.fc, R.fy, R.b, R.h, R.r, R.L, R.AsUsada, R.nramas), CALC_COLS))
       }
+    } else {
+      // "Detallar todas" desactivado → resumen compacto para no-gobernantes
+      trabeBlocks.push(dataTable(COMPACT_HEAD, compactRows(R), COMPACT_COLS))
     }
     // Imágenes del modelo estructural para esta viga (momento y cortante)
     const mi = modelImgs[i]
