@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import useColumnStore from '../store/useColumnStore'
 import ColumnForm from './ColumnForm'
 import ColumnCanvas from './ColumnCanvas'
@@ -6,6 +6,7 @@ import InteractionDiagram from './InteractionDiagram'
 import Interaction3D from './Interaction3D'
 import ColumnExcelView from './ColumnExcelView'
 import { analyzeColumn, checkPoint, checkBiaxial, excentricidad } from '../core/columnCalculator'
+import { parseRamEnvelope, evaluateEnvelope } from '../core/ramParser'
 
 export default function ColumnsView() {
   const columns = useColumnStore((s) => s.columns)
@@ -14,9 +15,12 @@ export default function ColumnsView() {
   const createColumn = useColumnStore((s) => s.createColumn)
   const removeColumn = useColumnStore((s) => s.removeColumn)
   const form = useColumnStore((s) => s.form)
+  const setEnvelope = useColumnStore((s) => s.setEnvelope)
 
   const [tab, setTab] = useState('diagrama')
   const [excelDir, setExcelDir] = useState('X')
+  const [envMsg, setEnvMsg] = useState('')
+  const envFileRef = useRef(null)
 
   const hasSel = selectedIdx >= 0 && selectedIdx < columns.length
   const valid = hasSel && +form.b > 0 && +form.h > 0 && +form.r > 0 && +form.fc > 0 &&
@@ -37,6 +41,35 @@ export default function ColumnsView() {
       ex: excentricidad(MuX, Pu, +form.b, +form.h),
     }
   }, [analysis, form.Pu, form.MuX, form.MuY, form.b, form.h])
+
+  // ── Envolvente (reporte RAM) ──
+  const env = form.envelope
+  const envEval = useMemo(() => {
+    if (!analysis || !env?.points?.length) return null
+    return evaluateEnvelope(env.points, analysis.dirX, analysis.dirY, env.mapping || 'M33X')
+  }, [analysis, env])
+
+  function handleEnvFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const parsed = parseRamEnvelope(ev.target.result)
+      if (!parsed.points.length) {
+        setEnvMsg(parsed.warnings[0] || 'No se pudieron leer puntos del archivo.')
+        return
+      }
+      setEnvelope({
+        archivo: file.name, combo: parsed.combo, unidades: parsed.unidades,
+        mapping: 'M33X', points: parsed.points,
+      })
+      setEnvMsg(`${parsed.points.length} puntos · ${new Set(parsed.points.map((p) => p.member)).size} miembros${parsed.combo ? ` · ${parsed.combo}` : ''}`)
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  const toggleMapping = () => setEnvelope({ ...env, mapping: (env.mapping || 'M33X') === 'M33X' ? 'M22X' : 'M33X' })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -105,6 +138,53 @@ export default function ColumnsView() {
                 </span>
               </div>
 
+              {/* ── Envolvente de elementos mecánicos (RAM) ── */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14,
+                padding: '8px 12px', borderRadius: 8,
+                background: 'var(--color-panel)', border: '1px solid var(--color-border)',
+              }}>
+                <input ref={envFileRef} type="file" accept=".txt,.csv,text/plain" style={{ display: 'none' }} onChange={handleEnvFile} />
+                <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => envFileRef.current?.click()}>
+                  📄 Cargar envolvente (RAM .txt)
+                </button>
+                {env?.points?.length ? (
+                  <>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--color-tx2)' }}>
+                      <b>{env.archivo}</b> · {env.points.length} puntos
+                      {env.combo ? ` · ${env.combo}` : ''}
+                    </span>
+                    <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={toggleMapping}
+                      title="Intercambia qué momento del reporte actúa en cada dirección">
+                      {(env.mapping || 'M33X') === 'M33X' ? 'M33→Mx · M22→My' : 'M22→Mx · M33→My'} ⇄
+                    </button>
+                    <button style={{
+                      fontSize: 10, background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--color-tx3)', textDecoration: 'underline',
+                    }} onClick={() => { setEnvelope(null); setEnvMsg('') }}>quitar</button>
+                    {envEval && (
+                      <span style={{
+                        marginLeft: 'auto', fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 99,
+                        fontFamily: 'var(--font-mono)',
+                        background: envEval.allOk ? '#e8f5e9' : '#fdecea',
+                        color: envEval.allOk ? '#15803d' : '#c62828',
+                        border: `1px solid ${envEval.allOk ? '#a5d6a7' : '#ef9a9a'}`,
+                      }}>
+                        {envEval.passing}/{envEval.total} dentro
+                        {envEval.critical && ` · crítico M-${envEval.critical.member} (util ${isFinite(envEval.critical.util) ? envEval.critical.util.toFixed(3) : '∞'})`}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ fontSize: 10.5, color: 'var(--color-tx3)' }}>
+                    Opcional — grafica todos los miembros del reporte sobre el diagrama de esta sección
+                  </span>
+                )}
+                {envMsg && !env?.points?.length && (
+                  <span style={{ fontSize: 10.5, color: '#c62828' }}>{envMsg}</span>
+                )}
+              </div>
+
               {tab === 'diagrama' && (
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                   <div style={{ background: 'var(--color-panel)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 8 }}>
@@ -112,10 +192,54 @@ export default function ColumnsView() {
                   </div>
                   <InteractionDiagram
                     analysis={analysis.dirX} Mu={form.MuX} Pu={form.Pu} check={checks.x}
-                    color="#2563a8" title={`Dirección X — P–Mx (peralte h=${form.h})`} />
+                    color="#2563a8" title={`Dirección X — P–Mx (peralte h=${form.h})`}
+                    cloud={envEval?.results} cloudKey="Mux" />
                   <InteractionDiagram
                     analysis={analysis.dirY} Mu={form.MuY} Pu={form.Pu} check={checks.y}
-                    color="#c94f2a" title={`Dirección Y — P–My (peralte b=${form.b})`} />
+                    color="#c94f2a" title={`Dirección Y — P–My (peralte b=${form.b})`}
+                    cloud={envEval?.results} cloudKey="Muy" />
+                </div>
+              )}
+
+              {tab === 'diagrama' && envEval && (
+                <div style={{ marginTop: 16, maxWidth: 900 }}>
+                  <div className="section-title">Revisión de la envolvente — {envEval.total} puntos</div>
+                  <div style={{ maxHeight: 300, overflowY: 'auto', marginTop: 8, border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+                      <thead style={{ position: 'sticky', top: 0 }}>
+                        <tr>
+                          {['Miembro', 'Env.', 'Pu (t)', 'Mux (t·m)', 'Muy (t·m)', 'MRx', 'MRy', 'Util.', 'Estado'].map((t) => (
+                            <th key={t} style={{ padding: '5px 8px', background: '#1a2040', color: '#fff', fontSize: 10, textAlign: 'left' }}>{t}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...envEval.results].sort((a, b) => (b.util || 0) - (a.util || 0)).map((r) => (
+                          <tr key={r.id} style={{ background: r.id === envEval.critical?.id ? '#fff8e1' : undefined }}>
+                            <td style={TD}><b>{r.member}</b></td>
+                            <td style={TD}>{r.tipo}</td>
+                            <td style={TD}>{r.Pu.toFixed(2)}</td>
+                            <td style={TD}>{r.Mux.toFixed(2)}</td>
+                            <td style={TD}>{r.Muy.toFixed(2)}</td>
+                            <td style={TD}>{r.cx.MR.toFixed(2)}</td>
+                            <td style={TD}>{r.cy.MR.toFixed(2)}</td>
+                            <td style={{ ...TD, fontWeight: 700, color: r.util > 1 ? '#c62828' : r.util > 0.9 ? '#b45309' : '#15803d' }}>
+                              {isFinite(r.util) ? r.util.toFixed(3) : '∞'}
+                            </td>
+                            <td style={TD}>
+                              <span style={{ fontWeight: 800, color: r.ok ? '#15803d' : '#c62828' }}>
+                                {r.ok ? '✓ pasa' : '✗ no pasa'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 10.5, color: 'var(--color-tx3)' }}>
+                    Utilización = √[(Mux/MRx)² + (Muy/MRy)²] al nivel de Pu de cada punto (contorno biaxial).
+                    La fila resaltada es el caso crítico.
+                  </div>
                 </div>
               )}
 
@@ -124,7 +248,7 @@ export default function ColumnsView() {
                   <Interaction3D
                     anX={analysis.dirX} anY={analysis.dirY}
                     Pu={form.Pu} MuX={form.MuX} MuY={form.MuY}
-                    biaxial={checks.biaxial} />
+                    biaxial={checks.biaxial} cloud={envEval?.results} />
                   <div style={{ background: 'var(--color-panel)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 8 }}>
                     <ColumnCanvas col={form} />
                   </div>
@@ -161,6 +285,8 @@ export default function ColumnsView() {
     </div>
   )
 }
+
+const TD = { padding: '4px 8px', borderBottom: '1px solid var(--color-border)', whiteSpace: 'nowrap' }
 
 function Badge({ ok, label }) {
   return (

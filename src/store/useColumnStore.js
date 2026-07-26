@@ -18,6 +18,8 @@ const defaultColumn = (nombre = '') => ({
   MuX: 0,         // momento que trabaja el peralte h (hoja de Excel tal cual)
   MuY: 0,         // momento en la otra dirección
   estriboNum: '2.5',
+  // Envolvente de elementos mecánicos (p. ej. reporte RAM) — opcional
+  envelope: null, // { archivo, combo, mapping, points:[...] }
 })
 
 let counter = 0
@@ -49,6 +51,17 @@ const useColumnStore = create((set, get) => ({
   setLecho: (idx, patch) => set((s) => {
     const lechos = (s.form.lechos || []).map((L, i) => (i === idx ? { ...L, ...patch } : L))
     const newForm = { ...s.form, lechos }
+    if (s.selectedIdx >= 0 && s.selectedIdx < s.columns.length) {
+      const updated = [...s.columns]
+      updated[s.selectedIdx] = { ...newForm }
+      return { form: newForm, columns: updated }
+    }
+    return { form: newForm }
+  }),
+
+  // Adjunta / quita la envolvente de la columna activa
+  setEnvelope: (env) => set((s) => {
+    const newForm = { ...s.form, envelope: env }
     if (s.selectedIdx >= 0 && s.selectedIdx < s.columns.length) {
       const updated = [...s.columns]
       updated[s.selectedIdx] = { ...newForm }
