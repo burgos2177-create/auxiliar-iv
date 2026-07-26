@@ -5,8 +5,10 @@ import BeamCanvas from './components/BeamCanvas'
 import MomentScale from './components/MomentScale'
 import CalculatorView from './components/CalculatorView'
 import BDGlobalView from './components/BDGlobalView'
+import ColumnsView from './components/ColumnsView'
 import MemoriaDialog from './components/MemoriaDialog'
 import useBeamStore from './store/useBeamStore'
+import useColumnStore from './store/useColumnStore'
 import { svgToDxf } from './core/svgToDxf'
 import { generateReport } from './core/generateReport'
 import { generateDetailedReport } from './core/generateDetailedHTML'
@@ -28,6 +30,8 @@ export default function App() {
   const sections = useBeamStore((s) => s.sections)
   const loadProject = useBeamStore((s) => s.loadProject)
   const calcAlert = useBeamStore((s) => s.calcAlert)
+  const columns = useColumnStore((s) => s.columns)
+  const loadColumns = useColumnStore((s) => s.loadColumns)
   const [dxfScale, setDxfScale] = useState(1)
   const [projectName, setProjectName] = useState('')
   const [mainTab, setMainTab] = useState('detalle')
@@ -81,9 +85,9 @@ export default function App() {
   }, [getSvgString, dxfScale, fileName])
 
   const handleSave = useCallback(() => {
-    const data = { version: 1, projectName, dxfScale, sections }
+    const data = { version: 2, projectName, dxfScale, sections, columns }
     download(JSON.stringify(data, null, 2), `${fileName}.json`, 'application/json')
-  }, [projectName, dxfScale, sections, fileName])
+  }, [projectName, dxfScale, sections, columns, fileName])
 
   const handleVerifyResumido = useCallback(() => {
     if (sections.length === 0) return
@@ -109,6 +113,7 @@ export default function App() {
         const data = JSON.parse(ev.target.result)
         if (data.sections && Array.isArray(data.sections)) {
           loadProject(data.sections)
+          loadColumns(Array.isArray(data.columns) ? data.columns : [])
           if (data.projectName !== undefined) setProjectName(data.projectName)
           if (data.dxfScale !== undefined) setDxfScale(data.dxfScale)
         }
@@ -118,7 +123,7 @@ export default function App() {
     }
     reader.readAsText(file)
     e.target.value = ''
-  }, [loadProject])
+  }, [loadProject, loadColumns])
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'var(--color-bg)' }}>
@@ -163,6 +168,23 @@ export default function App() {
             }} />
           )}
         </button>
+        <button onClick={() => setMainTab('columnas')}
+          className="px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors"
+          style={{
+            background: mainTab === 'columnas' ? 'var(--color-surface)' : 'transparent',
+            color: mainTab === 'columnas' ? 'var(--color-accent)' : 'var(--color-muted)',
+            borderBottom: mainTab === 'columnas' ? '2px solid var(--color-accent)' : '2px solid transparent',
+          }}>
+          Columnas
+          {columns.length > 0 && (
+            <span style={{
+              marginLeft: 6, fontSize: 10, fontFamily: 'var(--font-mono)',
+              background: mainTab === 'columnas' ? 'var(--color-accent)' : 'var(--color-border)',
+              color: mainTab === 'columnas' ? '#fff' : 'var(--color-tx2)',
+              padding: '1px 6px', borderRadius: 99,
+            }}>{columns.length}</span>
+          )}
+        </button>
         <button onClick={() => setMainTab('bdglobal')}
           className="px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors"
           style={{
@@ -189,6 +211,9 @@ export default function App() {
       </div>
       <div className="flex-1 overflow-auto" style={{ display: mainTab === 'calculo' ? 'block' : 'none' }}>
         <CalculatorView />
+      </div>
+      <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'columnas' ? 'flex' : 'none', flexDirection: 'column' }}>
+        <ColumnsView />
       </div>
       <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'bdglobal' ? 'flex' : 'none', flexDirection: 'column' }}>
         <BDGlobalView />
