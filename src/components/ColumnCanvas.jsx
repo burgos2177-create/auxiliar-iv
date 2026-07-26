@@ -20,7 +20,10 @@ export default function ColumnCanvas({ col }) {
 
   const bars = barGrid({ h, b, r, lechos })
   const est = bdLookup(col.estriboNum || 2.5)
-  const eiPx = Math.max(2, (r - est.diam) * SCALE * 0.45)
+  // Igual que en vigas: el eje del estribo va a (recub − radio_varilla) de la
+  // cara, tangente al paño exterior de las varillas → las envuelve.
+  const rCornerCm = bdLookup(lechos[0]?.num ?? 3).diam / 2
+  const eiPx = (r - rCornerCm) * SCALE
 
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ fontFamily: 'var(--font-mono)', display: 'block' }}>
@@ -30,6 +33,16 @@ export default function ColumnCanvas({ col }) {
         {/* Estribo */}
         <rect x={eiPx} y={eiPx} width={bpx - 2 * eiPx} height={hpx - 2 * eiPx} rx={4}
           fill="none" stroke="#1a7a5e" strokeWidth="1.5" />
+        {/* Ganchos sobre la varilla de esquina sup.-izq. (como en vigas) */}
+        {[160, 310].map((deg) => {
+          const a = (Math.PI * deg) / 180
+          const rc = rCornerCm * SCALE
+          const gLen = est.diam * SCALE * 1.8
+          const x0 = r * SCALE + rc * Math.cos(a)
+          const y0 = r * SCALE + rc * Math.sin(a)
+          return <line key={deg} x1={x0} y1={y0} x2={x0 + 0.6 * gLen} y2={y0 + 0.8 * gLen}
+            stroke="#1a7a5e" strokeWidth="1.5" />
+        })}
         {/* Barras (x a lo ancho, y = dp desde cara superior) */}
         {bars.map((bar, i) => (
           <circle key={i} cx={bar.x * SCALE} cy={bar.y * SCALE}

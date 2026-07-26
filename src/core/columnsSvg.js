@@ -34,13 +34,19 @@ export function columnSectionGroup(col, ox, oy, scale = 14) {
     longNum: lechos[0]?.num || 3,
     h, b,
   })
-  // Estribo: centro a (r − Øest/2) de la cara (misma convención que vigas)
-  const eiPx = (r - est.diam / 2) * scale
-  const ew = bpx - 2 * eiPx, eh = hpx - 2 * eiPx
-  const er = Math.min(4, ew * 0.08)
 
   const bars = barGrid({ h, b, r, lechos })
   const dps = lechoDepths(h, r, lechos.length)
+
+  // Radio de la varilla de esquina (lecho 1) — rige el ajuste del estribo
+  const rCornerCm = bdLookup(lechos[0]?.num ?? 3).diam / 2
+  const rCornerPx = rCornerCm * scale
+  // Estribo: su eje pasa a (recub − radio_varilla) de la cara, es decir
+  // TANGENTE al paño exterior de las varillas → el estribo las envuelve.
+  // Misma convención que beamGeometry (eiPx = recub − DIAM/20).
+  const eiPx = (r - rCornerCm) * scale
+  const ew = bpx - 2 * eiPx, eh = hpx - 2 * eiPx
+  const er = Math.min(4, ew * 0.08)
 
   const L = []
   const P = (s) => L.push(s)
@@ -52,14 +58,16 @@ export function columnSectionGroup(col, ox, oy, scale = 14) {
   // Estribo + ganchos (como vigas: sobre la barra sup.-izq.)
   P(`<rect x="${X(eiPx)}" y="${Y(eiPx)}" width="${ew.toFixed(1)}" height="${eh.toFixed(1)}" rx="${er.toFixed(1)}" fill="none" stroke="#1a7a5e" stroke-width="1.5"/>`)
   if (bars.length) {
-    const b0 = bars[0]
-    const rB = Math.max((b0.diam / 2) * scale, 3.5)
+    // Ganchos: nacen en la circunferencia de la varilla de esquina sup.-izq.
+    // (anclados en r,r como en vigas) a 160° y 310°, con longitud 1.8·Øest.
+    const barCx = r * scale, barCy = r * scale
     const gLen = est.diam * scale * 1.8
-    const a1 = (Math.PI * 160) / 180, a2 = (Math.PI * 310) / 180
-    for (const a of [a1, a2]) {
-      const x0 = b0.x * scale + rB * Math.cos(a)
-      const y0 = b0.y * scale + rB * Math.sin(a)
-      P(`<line x1="${X(x0)}" y1="${Y(y0)}" x2="${X(x0 + 0.6 * gLen)}" y2="${Y(y0 + 0.8 * gLen)}" stroke="#1a7a5e" stroke-width="1.5"/>`)
+    const hx = 0.60, hy = 0.80
+    for (const deg of [160, 310]) {
+      const a = (Math.PI * deg) / 180
+      const x0 = barCx + rCornerPx * Math.cos(a)
+      const y0 = barCy + rCornerPx * Math.sin(a)
+      P(`<line x1="${X(x0)}" y1="${Y(y0)}" x2="${X(x0 + hx * gLen)}" y2="${Y(y0 + hy * gLen)}" stroke="#1a7a5e" stroke-width="1.5"/>`)
     }
   }
   // Barras
@@ -69,6 +77,17 @@ export function columnSectionGroup(col, ox, oy, scale = 14) {
   }
 
   // ── Cotas (mismo trazo que vigas: gris, flechas triangulares) ──
+  // Recubrimiento: entre el eje del lecho inferior y el paño inferior
+  const rcPx = r * scale
+  const crx = -fs * 1.6
+  const yEje = hpx - rcPx, yPano = hpx
+  P(`<line x1="${X(0)}" y1="${Y(yEje)}" x2="${X(crx - 2)}" y2="${Y(yEje)}" stroke="#bbb" stroke-width="0.6" stroke-dasharray="2,2"/>`)
+  P(`<line x1="${X(0)}" y1="${Y(yPano)}" x2="${X(crx - 2)}" y2="${Y(yPano)}" stroke="#bbb" stroke-width="0.6" stroke-dasharray="2,2"/>`)
+  P(`<line x1="${X(crx)}" y1="${Y(yEje)}" x2="${X(crx)}" y2="${Y(yPano)}" stroke="#aaa" stroke-width="0.9"/>`)
+  P(`<polygon points="${X(crx)},${Y(yEje)} ${X(crx - 2)},${Y(yEje + 4)} ${X(crx + 2)},${Y(yEje + 4)}" fill="#aaa"/>`)
+  P(`<polygon points="${X(crx)},${Y(yPano)} ${X(crx - 2)},${Y(yPano - 4)} ${X(crx + 2)},${Y(yPano - 4)}" fill="#aaa"/>`)
+  P(`<text x="${X(crx - fs * 0.9)}" y="${Y(yEje + rcPx / 2 + fs * 0.35)}" font-size="${Math.round(fs * 0.8)}" fill="#aaa" text-anchor="middle" transform="rotate(-90,${X(crx - fs * 0.9)},${Y(yEje + rcPx / 2 + fs * 0.35)})">r=${r}</text>`)
+
   const cpx = -fs * 3.8
   P(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(cpx - 3)}" y2="${Y(0)}" stroke="#bbb" stroke-width="0.6" stroke-dasharray="2,2"/>`)
   P(`<line x1="${X(0)}" y1="${Y(hpx)}" x2="${X(cpx - 3)}" y2="${Y(hpx)}" stroke="#bbb" stroke-width="0.6" stroke-dasharray="2,2"/>`)
@@ -97,7 +116,9 @@ export function columnSectionGroup(col, ox, oy, scale = 14) {
   const Ast = lechos.reduce((s, Le) => s + bdLookup(Le.num).area * (+Le.n || 0), 0)
   P(`<text x="${X(bpx / 2)}" y="${Y(hpx + fs * 5.8)}" text-anchor="middle" font-size="${Math.round(fs * 1.5)}" font-weight="600" fill="#1a1814">${esc(col.nombre || 'COL')}</text>`)
   P(`<text x="${X(bpx / 2)}" y="${Y(hpx + fs * 7.2)}" text-anchor="middle" font-size="${Math.round(fs * 0.95)}" fill="#6b6760">${b} × ${h} cm</text>`)
-  P(`<text x="${X(bpx / 2)}" y="${Y(hpx + fs * 8.5)}" text-anchor="middle" font-size="${Math.round(fs * 0.85)}" fill="#8a8580">f'c = ${esc(col.fc)} kg/cm2 · Ast = ${Ast.toFixed(2)} cm2</text>`)
+  // Sin "·": encodeAcadText (DXF) sustituye lo no-ASCII por "?" — dos líneas.
+  P(`<text x="${X(bpx / 2)}" y="${Y(hpx + fs * 8.5)}" text-anchor="middle" font-size="${Math.round(fs * 0.85)}" fill="#8a8580">f'c = ${esc(col.fc)} kg/cm2</text>`)
+  P(`<text x="${X(bpx / 2)}" y="${Y(hpx + fs * 9.7)}" text-anchor="middle" font-size="${Math.round(fs * 0.85)}" fill="#8a8580">Ast = ${Ast.toFixed(2)} cm2</text>`)
 
   return L.join('')
 }
@@ -158,7 +179,7 @@ export function columnSectionSvgString(col, scale = 7) {
   const bpx = b * scale, hpx = h * scale
   const fs = Math.max(10, scale * 1.1)
   const W = MARGIN_L * 0.9 + bpx + MARGIN_R * 0.9
-  const H = fs * 2 + hpx + fs * 9.4
+  const H = fs * 2 + hpx + fs * 10.6
   const inner = columnSectionGroup(col, MARGIN_L * 0.9 * 0.85, fs * 2, scale)
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" width="${W.toFixed(0)}" height="${H.toFixed(0)}" font-family="'DM Mono','Courier New',monospace">${inner}</svg>`
 }
