@@ -49,12 +49,19 @@ export default function ColumnCanvas({ col }) {
             r={Math.max(3.2, (bar.diam / 2) * SCALE)}
             fill="#ffd5c8" stroke="#c94f2a" strokeWidth="1.2" />
         ))}
-        {/* Cotas */}
-        <line x1={-16} y1={0} x2={-16} y2={hpx} stroke="#9a958c" strokeWidth="0.9" />
-        <line x1={-19} y1={0} x2={-13} y2={0} stroke="#9a958c" strokeWidth="0.9" />
-        <line x1={-19} y1={hpx} x2={-13} y2={hpx} stroke="#9a958c" strokeWidth="0.9" />
-        <text x={-24} y={hpx / 2} fontSize="11" fill="#6b6760" textAnchor="middle"
-          transform={`rotate(-90,-24,${hpx / 2})`}>h = {h}</text>
+        {/* Cotas — la de altura va al extremo izquierdo para no encimarse
+            con las etiquetas de lecho, que quedan pegadas a la sección */}
+        <line x1={-32} y1={0} x2={-32} y2={hpx} stroke="#9a958c" strokeWidth="0.9" />
+        <line x1={-35} y1={0} x2={-29} y2={0} stroke="#9a958c" strokeWidth="0.9" />
+        <line x1={-35} y1={hpx} x2={-29} y2={hpx} stroke="#9a958c" strokeWidth="0.9" />
+        <text x={-40} y={hpx / 2} fontSize="11" fill="#6b6760" textAnchor="middle"
+          transform={`rotate(-90,-40,${hpx / 2})`}>h = {h}</text>
+        {/* Etiquetas de lecho (dentro del grupo, junto a la sección) */}
+        {barGridLabels({ h, r, lechos }).map((L, i) => (
+          <text key={i} x={-8} y={L.y * SCALE + 3.2} fontSize="9" fill="#c94f2a" textAnchor="end">
+            L{i + 1}
+          </text>
+        ))}
         <line x1={0} y1={hpx + 14} x2={bpx} y2={hpx + 14} stroke="#9a958c" strokeWidth="0.9" />
         <line x1={0} y1={hpx + 11} x2={0} y2={hpx + 17} stroke="#9a958c" strokeWidth="0.9" />
         <line x1={bpx} y1={hpx + 11} x2={bpx} y2={hpx + 17} stroke="#9a958c" strokeWidth="0.9" />
@@ -67,12 +74,6 @@ export default function ColumnCanvas({ col }) {
           {col.nombre || 'COL'}
         </text>
       </g>
-      {/* Lechos numerados */}
-      {barGridLabels({ h, r, lechos }).map((L, i) => (
-        <text key={i} x={ML - 34} y={MT + L.y * SCALE + 3.5} fontSize="9" fill="#c94f2a">
-          L{i + 1}
-        </text>
-      ))}
     </svg>
   )
 }

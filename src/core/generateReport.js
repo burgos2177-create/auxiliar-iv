@@ -2,6 +2,8 @@ import { jsPDF } from 'jspdf'
 import { computeGeometry } from './beamGeometry'
 import { DIAM } from './constants'
 import { calcFlexion, calcCortante } from './sectionCalculator'
+import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, barGrid, bdLookup } from './columnCalculator'
+import { evaluateEnvelope } from './ramParser'
 
 const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
 
@@ -266,8 +268,128 @@ function computeChecks(t) {
   return checks
 }
 
+// ── Dibujo de la sección de una columna (retícula real de barras) ──
+function drawColumnSection(doc, col, ox, oy, drawScale) {
+  const b = +col.b || 30, h = +col.h || 30, r = +col.r || 3
+  const bMm = b * drawScale, hMm = h * drawScale
+  const lechos = col.lechos || []
+
+  // Concreto
+  setDraw(doc, COL.steelTop)
+  doc.setLineWidth(0.4)
+  doc.rect(ox, oy, bMm, hMm)
+
+  // Estribo — tangente al paño de la varilla de esquina (igual que en vigas)
+  const rCornerCm = bdLookup(lechos[0]?.num ?? 3).diam / 2
+  const eiMm = (r - rCornerCm) * drawScale
+  setDraw(doc, COL.stirrup)
+  doc.setLineWidth(0.25)
+  doc.roundedRect(ox + eiMm, oy + eiMm, bMm - 2 * eiMm, hMm - 2 * eiMm, 1, 1)
+
+  // Barras
+  const bars = barGrid({ h, b, r, lechos })
+  setDraw(doc, COL.steelTop)
+  setFill(doc, [255, 213, 200])
+  doc.setLineWidth(0.2)
+  for (const bar of bars) {
+    doc.circle(ox + bar.x * drawScale, oy + bar.y * drawScale,
+      Math.max((bar.diam / 2) * drawScale, 0.7), 'FD')
+  }
+
+  // Cotas
+  doc.setFontSize(6)
+  setColor(doc, COL.tx3)
+  doc.text(`${b}`, ox + bMm / 2, oy + hMm + 4, { align: 'center' })
+  doc.text(`${h}`, ox - 3, oy + hMm / 2, { align: 'center', angle: 90 })
+}
+
+// ── Tarjeta de verificación de una columna ──────────────────
+function drawColumnCard(doc, col, y, marginL, contentW) {
+  const cardH = 62
+  setFill(doc, COL.white)
+  setDraw(doc, COL.border)
+  doc.setLineWidth(0.2)
+  doc.roundedRect(marginL, y - 2, contentW, cardH, 2, 2, 'FD')
+
+  let an = null
+  try { an = analyzeColumn(col) } catch { /* datos incompletos */ }
+
+  // Dibujo (escala ajustada para caber en la tarjeta)
+  const maxDim = Math.max(+col.b || 30, +col.h || 30)
+  const ds = Math.min(1.55, 46 / maxDim)
+  drawColumnSection(doc, col, marginL + 12, y + 5, ds)
+
+  // Datos
+  const tx = marginL + 62
+  let ty = y + 5
+  doc.setFontSize(11)
+  setColor(doc, COL.tx)
+  doc.text(col.nombre || 'Columna', tx, ty)
+  ty += 4.5
+  doc.setFontSize(7.5)
+  setColor(doc, COL.tx3)
+  const arm = (col.lechos || []).map((L, i) => `L${i + 1}:${L.n}#${L.num}`).join('  ')
+  doc.text(`${col.b}x${col.h} cm   f'c=${col.fc}   ${arm}`, tx, ty)
+  if (an) {
+    ty += 3.6
+    const est = calcEstribos({ estriboNum: col.estriboNum, longNum: col.lechos?.[0]?.num || 3, h: +col.h, b: +col.b })
+    doc.text(`Ast = ${an.dirX.params.Ast.toFixed(2)} cm2   E#${col.estriboNum} @ ${est.s} cm`, tx, ty)
+  }
+
+  let ok = true
+  if (an) {
+    const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
+    const cx = checkPoint(an.dirX.curve, Pu, MuX)
+    const cy = checkPoint(an.dirY.curve, Pu, MuY)
+    const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+
+    // Encabezado de tabla
+    ty += 6
+    doc.setFontSize(6.5)
+    setColor(doc, COL.tx3)
+    doc.text('Revisión', tx, ty)
+    doc.text('Resist.', tx + 28, ty, { align: 'right' })
+    doc.text('Actuante', tx + 44, ty, { align: 'right' })
+    doc.text('Ratio', tx + 58, ty, { align: 'right' })
+    ty += 1
+    setDraw(doc, COL.border)
+    doc.setLineWidth(0.15)
+    doc.line(tx, ty, tx + 70, ty)
+    ty += 3.4
+
+    ok = drawVerifRow(doc, `Mx (Pu=${Pu.toFixed(1)}t)`, cx.MR, MuX, ty, tx) && ok
+    ty += 4
+    ok = drawVerifRow(doc, 'My', cy.MR, MuY, ty, tx) && ok
+    ty += 4
+    ok = drawVerifRow(doc, 'Biaxial', 1, isFinite(bi.valor) ? bi.valor : 99, ty, tx) && ok
+
+    // Envolvente cargada
+    const env = col.envelope
+    if (env?.points?.length) {
+      const ev = evaluateEnvelope(env.points, an.dirX, an.dirY, env.mapping || 'M33X')
+      ty += 5.5
+      doc.setFontSize(7)
+      setColor(doc, ev.allOk ? COL.ok : COL.warn)
+      const crit = ev.critical
+      doc.text(
+        `Envolvente ${env.combo || ''}: ${ev.passing}/${ev.total} dentro` +
+        (crit ? `  ·  crítico M-${crit.member} (util ${isFinite(crit.util) ? crit.util.toFixed(3) : '∞'})` : ''),
+        tx, ty,
+      )
+      if (!ev.allOk) ok = false
+    }
+  } else {
+    ty += 7
+    doc.setFontSize(8)
+    setColor(doc, COL.warn)
+    doc.text('Datos incompletos — revisar geometría y lechos.', tx, ty)
+  }
+
+  return { cardH, ok }
+}
+
 // ── Main report generator ───────────────────────────────────
-export function generateReport(sections, projectName = '') {
+export function generateReport(sections, projectName = '', columns = []) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -293,7 +415,7 @@ export function generateReport(sections, projectName = '') {
   y += 5
   doc.setFontSize(9)
   setColor(doc, COL.tx3)
-  doc.text('Auxiliar IV — Detallador de Vigas', marginL, y)
+  doc.text('Auxiliar IV — Detallador de elementos de concreto', marginL, y)
 
   if (projectName.trim()) {
     y += 4.5
@@ -466,6 +588,27 @@ export function generateReport(sections, projectName = '') {
     y = cardY + cardH + 5
   })
 
+  // ── Columnas (flexocompresión) ──
+  if (columns && columns.length) {
+    if (y > pageH - 80) { doc.addPage(); pageNum++; y = marginT }
+    y += 2
+    doc.setFontSize(11)
+    setColor(doc, COL.tx)
+    doc.text('Columnas — revisión por flexocompresión', marginL, y)
+    y += 2
+    setDraw(doc, COL.accent)
+    doc.setLineWidth(0.4)
+    doc.line(marginL, y, pageW - marginR, y)
+    y += 6
+
+    columns.forEach((col) => {
+      if (y > pageH - 68) { doc.addPage(); pageNum++; y = marginT }
+      const { cardH, ok } = drawColumnCard(doc, col, y, marginL, contentW)
+      if (!ok) hasWarnings = true
+      y += cardH + 5
+    })
+  }
+
   // ── Summary at bottom ──
   if (y > pageH - 30) {
     doc.addPage()
@@ -484,7 +627,7 @@ export function generateReport(sections, projectName = '') {
     doc.text('⚠  Se encontraron elementos que no cumplen. Revisar diseño.', marginL, y)
   } else {
     setColor(doc, COL.ok)
-    doc.text('Todas las secciones verificadas cumplen.', marginL, y)
+    doc.text('Todos los elementos verificados cumplen.', marginL, y)
   }
 
   // Incomplete sections warning
@@ -501,8 +644,8 @@ export function generateReport(sections, projectName = '') {
   y += 6
   doc.setFontSize(7)
   setColor(doc, COL.tx3)
-  doc.text('Generado con Auxiliar IV — Detallador de Vigas', marginL, y)
-  doc.text(`Secciones: ${sections.length}  |  P\u00E1ginas: ${pageNum}`, marginL, y + 3.5)
+  doc.text('Generado con Auxiliar IV — Detallador de elementos de concreto', marginL, y)
+  doc.text(`Trabes: ${sections.length}  |  Columnas: ${columns.length}  |  P\u00E1ginas: ${pageNum}`, marginL, y + 3.5)
 
   // ── Watermark + Footer on each page ──
   const totalPages = doc.internal.getNumberOfPages()

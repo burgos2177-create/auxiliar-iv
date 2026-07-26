@@ -3,6 +3,9 @@
 // ══════════════════════════════════════════════════════════════
 
 import { calcFlexion, calcCortante, VARILLAS } from './sectionCalculator'
+import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, excentricidad } from './columnCalculator'
+import { evaluateEnvelope } from './ramParser'
+import { interactionSvgString } from './columnsSvg'
 
 const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
 
@@ -301,7 +304,132 @@ export function computeSectionResults(t) {
 // ═══════════════════════════════════════════════════════════════
 // Main export
 // ═══════════════════════════════════════════════════════════════
-export function generateDetailedReport(sections, projectName = '') {
+// ═══════════════════════════════════════════════════════════════
+// Verificación de columnas (flexocompresión) — bloque HTML
+// ═══════════════════════════════════════════════════════════════
+function renderColumnas(columnsArr) {
+  if (!columnsArr || !columnsArr.length) return ''
+  const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  const bloques = columnsArr.map((col, i) => {
+    let an = null
+    try { an = analyzeColumn(col) } catch { /* incompleta */ }
+    if (!an) {
+      return `<div class="${i > 0 ? 'section-page' : ''}">
+        <div style="font-size:20px;font-weight:800;color:#0f172a">COLUMNA — ${esc(col.nombre)}</div>
+        <div style="color:#dc2626;padding:12px">Datos incompletos — revisar geometría y lechos.</div></div>`
+    }
+    const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
+    const cx = checkPoint(an.dirX.curve, Pu, MuX)
+    const cy = checkPoint(an.dirY.curve, Pu, MuY)
+    const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+    const est = calcEstribos({ estriboNum: col.estriboNum, longNum: col.lechos?.[0]?.num || 3, h: +col.h, b: +col.b })
+    const ex = excentricidad(MuX, Pu, +col.b, +col.h)
+    const P = an.dirX.params
+    const allOk = cx.ok && cy.ok && bi.ok
+
+    // Envolvente, si la hay
+    let envHtml = ''
+    const env = col.envelope
+    if (env?.points?.length) {
+      const ev = evaluateEnvelope(env.points, an.dirX, an.dirY, env.mapping || 'M33X')
+      const filas = [...ev.results].sort((a, b) => (b.util || 0) - (a.util || 0)).slice(0, 12).map((r) => `
+        <tr${r.id === ev.critical?.id ? ' style="background:#fff8e1"' : ''}>
+          <td>${esc(r.member)}</td><td>${esc(r.tipo)}</td>
+          <td>${fmt(r.Pu, 2)}</td><td>${fmt(r.Mux, 2)}</td><td>${fmt(r.Muy, 2)}</td>
+          <td>${fmt(r.cx.MR, 2)}</td><td>${fmt(r.cy.MR, 2)}</td>
+          <td style="font-weight:700;color:${r.util > 1 ? '#dc2626' : '#15803d'}">${isFinite(r.util) ? fmt(r.util, 3) : '∞'}</td>
+          <td style="font-weight:700;color:${r.ok ? '#15803d' : '#dc2626'}">${r.ok ? '✓' : '✗'}</td>
+        </tr>`).join('')
+      envHtml = `
+        <div style="font-size:14px;font-weight:800;margin:18px 0 8px;color:#0f172a">
+          Envolvente ${esc(env.combo || '')} — ${ev.passing}/${ev.total} dentro
+          ${ev.critical ? `· crítico M-${esc(ev.critical.member)} (util ${isFinite(ev.critical.util) ? fmt(ev.critical.util, 3) : '∞'})` : ''}
+        </div>
+        <table class="summary"><tr><th>Miembro</th><th>Env.</th><th>Pu (t)</th><th>Mux</th><th>Muy</th>
+          <th>MRx</th><th>MRy</th><th>Util.</th><th></th></tr>${filas}</table>
+        ${ev.total > 12 ? `<div style="font-size:10px;color:#6b7280;margin-top:4px">Se listan los 12 casos de mayor utilización de ${ev.total}.</div>` : ''}`
+    }
+
+    // Tabla de puntos del diagrama
+    const puntos = an.dirX.canonical.map((pt) => `
+      <tr><td>${esc(pt.label)}</td><td>${pt.c != null ? fmt(pt.c, 3) : '—'}</td>
+      <td>${fmt(pt.P, 3)}</td><td>${fmt(pt.M, 4)}</td></tr>`).join('')
+
+    return `<div class="${i > 0 ? 'section-page' : ''}">
+      <div style="border-bottom:2px solid #4ecac4;padding-bottom:14px;margin-bottom:24px">
+        <div style="font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-0.02em">VERIFICACIÓN POR FLEXOCOMPRESIÓN — ${esc(col.nombre)}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">Diagrama de interacción · NTC-2023 · Concreto Reforzado</div>
+      </div>
+
+      <div class="data-grid">
+        ${[["b", col.b, 'cm'], ['h', col.h, 'cm'], ['r', col.r, 'cm'], ['d', fmt(P.d, 1), 'cm'],
+           ["f'c", P.fc, 'kg/cm²'], ['fy', P.fy, 'kg/cm²'], ['β1', fmt(P.b1, 3), ''], ['Ast', fmt(P.Ast, 2), 'cm²'],
+           ['Pu', fmt(Pu, 2), 'ton'], ['Mux', fmt(MuX, 2), 'ton·m'], ['Muy', fmt(MuY, 2), 'ton·m'],
+           ['e', isFinite(ex.e) ? fmt(ex.e, 4) : '—', 'm']]
+          .map(([l, v, u]) => `<div><span class="l">${l}:</span> <span class="v">${v}</span>${u ? ` <span class="u">${u}</span>` : ''}</div>`).join('')}
+      </div>
+      <div class="nota" style="background:#f0f9ff;border-color:#bae6fd;color:#0c4a6e">
+        ${esc(ex.modo)} — e = ${isFinite(ex.e) ? fmt(ex.e, 4) : '—'} m
+        ${ex.eLim ? `vs 0.1·min(b,h) = ${fmt(ex.eLim, 4)} m` : ''}
+      </div>
+
+      <div style="font-size:16px;font-weight:800;color:#0f172a;border-bottom:2px solid #1d4ed8;padding-bottom:8px;margin:24px 0 14px;text-transform:uppercase">
+        Puntos del diagrama — dirección X (peralte h = ${esc(col.h)} cm)
+      </div>
+      <table class="summary"><tr><th>Punto</th><th>c (cm)</th><th>P (ton)</th><th>M (ton·m)</th></tr>${puntos}</table>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:18px 0">
+        ${interactionSvgString(an.dirX, { Mu: MuX, Pu, check: cx, color: '#2563a8', title: `Dirección X — P–Mx` })}
+        ${interactionSvgString(an.dirY, { Mu: MuY, Pu, check: cy, color: '#c94f2a', title: `Dirección Y — P–My` })}
+      </div>
+
+      <div style="font-size:16px;font-weight:800;color:#0f172a;border-bottom:2px solid #9333ea;padding-bottom:8px;margin:24px 0 14px;text-transform:uppercase">
+        Verificaciones
+      </div>
+      <table class="summary">
+        <tr><th>Revisión</th><th>Actuante</th><th>Resistente</th><th>Ratio</th><th>Estado</th></tr>
+        <tr><td>Momento en X (al nivel de Pu)</td><td>${fmt(MuX, 3)} t·m</td><td>${fmt(cx.MR, 3)} t·m</td>
+            <td>${cx.MR > 0 ? fmt(MuX / cx.MR, 3) : '—'}</td>
+            <td style="color:${cx.ok ? '#15803d' : '#dc2626'};font-weight:700">${cx.ok ? '✓ CUMPLE' : '✗ NO CUMPLE'}</td></tr>
+        <tr><td>Momento en Y (al nivel de Pu)</td><td>${fmt(MuY, 3)} t·m</td><td>${fmt(cy.MR, 3)} t·m</td>
+            <td>${cy.MR > 0 ? fmt(MuY / cy.MR, 3) : '—'}</td>
+            <td style="color:${cy.ok ? '#15803d' : '#dc2626'};font-weight:700">${cy.ok ? '✓ CUMPLE' : '✗ NO CUMPLE'}</td></tr>
+        <tr><td>Flexocompresión biaxial (Mux/MRx)²+(Muy/MRy)²</td><td>${isFinite(bi.valor) ? fmt(bi.valor, 3) : '∞'}</td><td>1.000</td>
+            <td>${isFinite(bi.valor) ? fmt(bi.valor, 3) : '∞'}</td>
+            <td style="color:${bi.ok ? '#15803d' : '#dc2626'};font-weight:700">${bi.ok ? '✓ CUMPLE' : '✗ NO CUMPLE'}</td></tr>
+      </table>
+
+      <div style="font-size:16px;font-weight:800;color:#0f172a;border-bottom:2px solid #1a7a5e;padding-bottom:8px;margin:24px 0 14px;text-transform:uppercase">
+        Acero transversal
+      </div>
+      <table class="summary">
+        <tr><th>Criterio</th><th>Fórmula</th><th>Valor</th></tr>
+        <tr><td>Por estribos</td><td>A(#${esc(col.estriboNum)}) × 16</td><td>${fmt(est.s1, 2)} cm</td></tr>
+        <tr><td>Por acero longitudinal</td><td>A(#${esc(col.lechos?.[0]?.num)}) × 48</td><td>${fmt(est.s2, 2)} cm</td></tr>
+        <tr><td>Por dimensiones</td><td>mín(b, h)</td><td>${fmt(est.s3, 0)} cm</td></tr>
+        <tr><td><b>Separación propuesta</b></td><td>⌊mín(s1, s2, s3)⌋</td><td><b>E#${esc(col.estriboNum)} @ ${est.s} cm</b></td></tr>
+      </table>
+
+      ${envHtml}
+
+      <div class="vfinal ${allOk ? 'vfinal-ok' : 'vfinal-fail'}">${allOk
+        ? `✓ DISEÑO VÁLIDO — el punto (Pu, Mux, Muy) queda dentro del diagrama de interacción`
+        : '✗ DISEÑO NO VÁLIDO — el punto queda fuera del diagrama; revisar sección o armado'}</div>
+
+      <div style="border-top:2px solid #4ecac4;padding-top:10px;margin-top:24px;font-size:10px;color:#9ca3af;text-align:right">
+        IV Ingenierías · Auxiliar IV — Columnas por flexocompresión
+      </div>
+    </div>`
+  }).join('')
+
+  return `<div class="section-page">
+    <div style="font-size:22px;font-weight:800;color:#0f172a;margin-bottom:6px">COLUMNAS</div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:20px">Revisión por flexocompresión — ${columnsArr.length} elemento(s)</div>
+  </div>${bloques}`
+}
+
+export function generateDetailedReport(sections, projectName = '', columns = []) {
   const logob64 = btoa(unescape(encodeURIComponent(LOGO_SVG)))
   const now = new Date()
   const dateStr = now.toLocaleDateString('es-MX') + ' — ' + now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
@@ -356,6 +484,8 @@ export function generateDetailedReport(sections, projectName = '') {
     sectionsHTML += '</div>'
   })
 
+  const columnasHTML = renderColumnas(columns)
+
   // Summary page
   let summaryHTML = `<div class="section-page">
     <div style="font-size:20px;font-weight:800;color:#0f172a;margin-bottom:20px">RESUMEN DE VERIFICACIÓN</div>
@@ -370,7 +500,7 @@ export function generateDetailedReport(sections, projectName = '') {
     </table>
     <div style="margin-top:20px;font-size:10px;color:#9ca3af">
       Generado con Auxiliar IV v0.2 — ${dateStr}<br>
-      Secciones: ${sections.length}
+      Trabes: ${sections.length} · Columnas: ${columns.length}
     </div>
   </div>`
 
@@ -391,6 +521,7 @@ export function generateDetailedReport(sections, projectName = '') {
   </head><body>
     ${brandHeader}
     ${sectionsHTML}
+    ${columnasHTML}
     ${summaryHTML}
   </body></html>`)
   w.document.close()

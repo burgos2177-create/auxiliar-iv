@@ -99,15 +99,15 @@ export default function App() {
   }, [projectName, dxfScale, sections, columns, fileName])
 
   const handleVerifyResumido = useCallback(() => {
-    if (sections.length === 0) return
-    const doc = generateReport(sections, projectName)
+    if (sections.length === 0 && columns.length === 0) return
+    const doc = generateReport(sections, projectName, columns)
     doc.save(`${fileName}-verificacion.pdf`)
-  }, [sections, projectName, fileName])
+  }, [sections, columns, projectName, fileName])
 
   const handleVerifyDetallado = useCallback(() => {
-    if (sections.length === 0) return
-    generateDetailedReport(sections, projectName)
-  }, [sections, projectName])
+    if (sections.length === 0 && columns.length === 0) return
+    generateDetailedReport(sections, projectName, columns)
+  }, [sections, columns, projectName])
 
   const handleOpen = useCallback(() => {
     fileInputRef.current?.click()
