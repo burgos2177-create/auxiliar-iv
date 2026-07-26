@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { generateMemoria } from '../core/generateMemoria'
 import { generateMemoriaDocx } from '../core/generateMemoriaDocx'
+import useColumnStore from '../store/useColumnStore'
 
 const LS_KEY = 'iv_memoria_meta'
 
@@ -30,6 +31,7 @@ function Field({ label, children, full }) {
 }
 
 export default function MemoriaDialog({ open, onClose, sections, projectName }) {
+  const columns = useColumnStore((s) => s.columns)
   const [meta, setMeta] = useState(loadMeta)
   const [dcheck, setDcheck] = useState(null)
   const [dcheckName, setDcheckName] = useState('')
@@ -85,7 +87,7 @@ export default function MemoriaDialog({ open, onClose, sections, projectName }) 
     persist()
     setBusy(true)
     try {
-      await generateMemoriaDocx({ sections, meta, dcheck })
+      await generateMemoriaDocx({ sections, columns, meta, dcheck })
       onClose()
     } catch (err) {
       alert('No se pudo generar el documento Word: ' + (err?.message || err))
@@ -96,7 +98,7 @@ export default function MemoriaDialog({ open, onClose, sections, projectName }) 
 
   function handlePdf() {
     persist()
-    generateMemoria({ sections, meta, dcheck })
+    generateMemoria({ sections, columns, meta, dcheck })
     onClose()
   }
 
@@ -125,7 +127,7 @@ export default function MemoriaDialog({ open, onClose, sections, projectName }) 
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-tx1)' }}>Generar memoria de cálculo</div>
             <div style={{ fontSize: 11, color: 'var(--color-tx3)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-              {sections.length} sección(es) · NTC-2023
+              {sections.length} trabe(s) · {columns.length} columna(s) · NTC-2023
             </div>
           </div>
           <button onClick={onClose} style={{

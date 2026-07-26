@@ -10,6 +10,7 @@ import MemoriaDialog from './components/MemoriaDialog'
 import useBeamStore from './store/useBeamStore'
 import useColumnStore from './store/useColumnStore'
 import { svgToDxf } from './core/svgToDxf'
+import { columnsGridSvg } from './core/columnsSvg'
 import { generateReport } from './core/generateReport'
 import { generateDetailedReport } from './core/generateDetailedHTML'
 import { initGlobalDB, getDB, getStats, onDBChange } from './core/globalDB'
@@ -45,27 +46,35 @@ export default function App() {
     return onDBChange(() => setDbCount(getStats().total))
   }, [])
 
-  // Serialize SVG; when forDxf=true, swap width/height to cm units
+  // SVG de export: vigas (canvas en vivo) + columnas (grid generado),
+  // apiladas en un solo documento a 14 px/cm. Con forDxf=true el ancho/alto
+  // van en cm para que svgToDxf deduzca la escala física real.
   const getSvgString = useCallback((forDxf = false) => {
     const el = svgRef.current
-    if (!el) return null
-    const serializer = new XMLSerializer()
-    let str = serializer.serializeToString(el)
-    if (!str.includes('xmlns')) {
-      str = str.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+    const hasBeams = sections.length > 0 && el
+    const grid = columns.length > 0 ? columnsGridSvg(columns, 14) : { inner: '', W: 0, H: 0 }
+    if (!hasBeams && !grid.inner) return null
+
+    let beamsInner = ''
+    let wB = 0, hB = 0
+    if (hasBeams) {
+      wB = parseFloat(el.getAttribute('width')) || 0
+      hB = parseFloat(el.getAttribute('height')) || 0
+      const str = new XMLSerializer().serializeToString(el)
+      beamsInner = str.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
     }
-    if (forDxf) {
-      const wCm = el.getAttribute('data-real-width-cm')
-      const hCm = el.getAttribute('data-real-height-cm')
-      if (wCm && hCm) {
-        // Replace numeric width/height with cm values for correct DXF scaling
-        str = str
-          .replace(/\bwidth="[\d.]+"/, `width="${wCm}cm"`)
-          .replace(/\bheight="[\d.]+"/, `height="${hCm}cm"`)
-      }
-    }
-    return str
-  }, [])
+
+    const W = Math.max(wB, grid.W)
+    const H = hB + grid.H
+    const wCm = (W / 14).toFixed(4)
+    const hCm = (H / 14).toFixed(4)
+    const size = forDxf ? `width="${wCm}cm" height="${hCm}cm"` : `width="${W}" height="${H}"`
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" ${size} ` +
+      `data-real-width-cm="${wCm}" data-real-height-cm="${hCm}" style="font-family:'DM Mono',monospace">` +
+      beamsInner +
+      (grid.inner ? `<g transform="translate(0,${hB})">${grid.inner}</g>` : '') +
+      `</svg>`
+  }, [sections.length, columns])
 
   const fileName = projectName.trim()
     ? `secciones-${projectName.trim().replace(/\s+/g, '-')}`

@@ -10,6 +10,8 @@ import {
   computeSectionResults, renderFlexion, renderCortante,
 } from './generateDetailedHTML'
 import { sectionSvgString } from './sectionSvg'
+import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, excentricidad } from './columnCalculator'
+import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const fmt = (v, d = 2) => (v === null || v === undefined || isNaN(v) ? '—' : Number(v).toFixed(d))
@@ -201,7 +203,73 @@ export function normalizeMeta(meta) {
   }
 }
 
-function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = false }) {
+// ── Sección de columnas (flexocompresión) para la memoria ─────
+function columnasHTML(columnsArr, M) {
+  if (!columnsArr || !columnsArr.length) {
+    return `<div class="placeholder">
+      <b>Sin columnas capturadas.</b><br>
+      Agregue columnas en la pestaña "Columnas" para incluir aquí su diseño por flexocompresión.
+    </div>`
+  }
+
+  const rows = []
+  const blocks = []
+  for (const col of columnsArr) {
+    let an = null
+    try { an = analyzeColumn(col) } catch { /* datos incompletos */ }
+    if (!an) continue
+    const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
+    const cx = checkPoint(an.dirX.curve, Pu, MuX)
+    const cy = checkPoint(an.dirY.curve, Pu, MuY)
+    const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+    const est = calcEstribos({ estriboNum: col.estriboNum, longNum: col.lechos?.[0]?.num || 3, h: +col.h, b: +col.b })
+    const ex = excentricidad(MuX, Pu, +col.b, +col.h)
+    const arm = (col.lechos || []).map((L, i) => `L${i + 1}: ${L.n}#${L.num}`).join(' · ')
+    const ok = cx.ok && cy.ok && bi.ok
+
+    rows.push(`<tr>
+      <td><b>${esc(col.nombre)}</b></td>
+      <td class="num">${esc(col.b)}×${esc(col.h)}</td>
+      <td>${esc(arm)}</td>
+      <td class="num">${fmt(an.dirX.params.Ast, 2)}</td>
+      <td class="num">${fmt(Pu, 2)}</td>
+      <td class="num">${fmt(MuX, 2)} / ${fmt(cx.MR, 2)}</td>
+      <td class="num">${fmt(MuY, 2)} / ${fmt(cy.MR, 2)}</td>
+      <td>E#${esc(col.estriboNum)}@${est.s}</td>
+      <td style="text-align:center"><span class="mark-pill" style="background:${ok ? '#f0fdf4' : '#fef2f2'};color:${ok ? '#15803d' : '#b91c1c'};border:1px solid ${ok ? '#86efac' : '#fca5a5'}">${ok ? 'VERIFICADO' : 'NO PASA'}</span></td>
+    </tr>`)
+
+    blocks.push(`<div class="mem-trabe">
+      <h3 class="mem">Columna ${esc(col.nombre)}</h3>
+      <p class="mem-p">Se construyó el diagrama de interacción de la columna proponiendo profundidades del
+      eje neutro y calculando, para cada una, las fuerzas por lecho y el bloque de compresión del concreto
+      (puntos POC, 1, falla balanceada D, 2, 3 y M0). Con Pu = <b>${fmt(Pu, 2)} ton</b>,
+      Mux = <b>${fmt(MuX, 2)} ton·m</b> y Muy = <b>${fmt(MuY, 2)} ton·m</b>
+      (e = ${isFinite(ex.e) ? fmt(ex.e, 4) : '—'} m → ${esc(ex.modo.toLowerCase().replace('realizar ', ''))}),
+      el punto de demanda ${ok ? 'queda dentro' : 'NO queda dentro'} del diagrama:
+      MRx = ${fmt(cx.MR, 2)} t·m ${cx.ok ? '≥' : '<'} Mux · MRy = ${fmt(cy.MR, 2)} t·m ${cy.ok ? '≥' : '<'} Muy ·
+      biaxial (Mux/MRx)²+(Muy/MRy)² = ${isFinite(bi.valor) ? fmt(bi.valor, 3) : '∞'} ${bi.ok ? '≤' : '>'} 1.
+      Acero transversal: <b>E#${esc(col.estriboNum)} @ ${est.s} cm</b>
+      (s1 = ${fmt(est.s1, 2)}, s2 = ${fmt(est.s2, 2)}, s3 = ${fmt(est.s3, 0)} cm).</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;justify-content:center">
+        <div class="sec-svg">${columnSectionSvgString(col)}</div>
+        ${interactionSvgString(an.dirX, { Mu: MuX, Pu, check: cx, color: '#2563a8', title: `Dirección X — P–Mx (h=${col.h})` })}
+        ${interactionSvgString(an.dirY, { Mu: MuY, Pu, check: cy, color: '#c94f2a', title: `Dirección Y — P–My (h=${col.b})` })}
+      </div>
+    </div>`)
+  }
+
+  return `<p class="mem-p">Las columnas se diseñaron por flexocompresión construyendo su diagrama de
+    interacción en ambas direcciones. La siguiente tabla resume las ${columnsArr.length} columna(s):</p>
+    <table class="mem">
+      <tr><th>Columna</th><th>b×h (cm)</th><th>Armado</th><th>Ast (cm²)</th><th>Pu (t)</th>
+          <th>Mux/MRx (t·m)</th><th>Muy/MRy (t·m)</th><th>Estribos</th><th>Estado</th></tr>
+      ${rows.join('')}
+    </table>
+    ${blocks.join('')}`
+}
+
+function buildMemoriaBody({ sections, M, dcheck, columnsArr = [], renderFig, logoSrc, forWord = false }) {
   // Pre-compute every section's results once
   const computed = sections.map((t) => ({ t, R: computeSectionResults(t) }))
 
@@ -381,13 +449,7 @@ function buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc, forWord = f
       resultaron menores a las permisibles, por lo que el diseño propuesto es aceptable.</p>
 
       <h3 class="mem">Diseño de columnas</h3>
-      <div class="placeholder">
-        <b>Sección en desarrollo.</b><br>
-        La columna más crítica presenta momento, por lo que se llevará a cabo un diseño de
-        <b>flexocompresión</b> a partir de la carga axial (Pu) y el momento (Mu) últimos obtenidos del
-        análisis, con la respectiva revisión de la resistencia P-M y el detalle de armado.<br>
-        <span style="font-size:9.5pt">Pendiente de captura — se completará con el módulo de columnas.</span>
-      </div>
+      ${columnasHTML(columnsArr, M)}
 
       <h3 class="mem">Diseño de cimentación</h3>
       <div class="placeholder">
@@ -449,11 +511,11 @@ export function svgToPng(svgString, fallbackW = 400, fallbackH = 300) {
 // ══════════════════════════════════════════════════════════════
 // Output 1 — printable HTML (PDF via browser print)
 // ══════════════════════════════════════════════════════════════
-export function generateMemoria({ sections = [], meta = {}, dcheck = null } = {}) {
+export function generateMemoria({ sections = [], columns = [], meta = {}, dcheck = null } = {}) {
   const M = normalizeMeta(meta)
   const logoSrc = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(LOGO_SVG)))}`
   const renderFig = (t) => `<div class="sec-svg">${sectionSvgString(t)}</div>`
-  const body = buildMemoriaBody({ sections, M, dcheck, renderFig, logoSrc })
+  const body = buildMemoriaBody({ sections, M, dcheck, columnsArr: columns, renderFig, logoSrc })
 
   const doc = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
     <title>Memoria de Cálculo${M.proyecto ? ` — ${esc(M.proyecto)}` : ''}</title>

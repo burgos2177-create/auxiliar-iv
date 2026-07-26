@@ -12,6 +12,8 @@ import {
 import { computeSectionResults, LOGO_SVG } from './generateDetailedHTML'
 import { sectionSvgString } from './sectionSvg'
 import { svgToPng, normalizeMeta } from './generateMemoria'
+import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, excentricidad } from './columnCalculator'
+import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
 
 // ── palette ──
 const TEAL = '4ECAC4', INK = '0F172A', GREY = '6B7280', SUB = '334155'
@@ -155,7 +157,7 @@ const imgPara = (img) => new Paragraph({
 // ══════════════════════════════════════════════════════════════
 // Main entry
 // ══════════════════════════════════════════════════════════════
-export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = null } = {}) {
+export async function generateMemoriaDocx({ sections = [], columns = [], meta = {}, dcheck = null } = {}) {
   const M = normalizeMeta(meta)
   const computed = sections.map((t) => ({ t, R: computeSectionResults(t) }))
 
@@ -263,6 +265,61 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
     }
   })
 
+  // ── Columnas: bloques nativos (tabla resumen + por columna) ──
+  const colBlocks = []
+  if (columns.length) {
+    colBlocks.push(para('Las columnas se diseñaron por flexocompresión construyendo su diagrama de interacción en ambas direcciones: se proponen profundidades del eje neutro y, para cada una, se calculan las deformaciones y fuerzas por lecho junto con el bloque de compresión del concreto, obteniendo la carga axial y el momento resistentes (puntos POC, 1, falla balanceada D, 2, 3 y M0). El punto de demanda (Pu, Mu) debe quedar dentro del diagrama. La siguiente tabla resume las columnas consideradas:', { align: AlignmentType.JUSTIFIED }))
+
+    const cHead = ['Columna', 'b×h (cm)', 'Armado', 'Ast (cm²)', 'Pu (t)', 'Mux/MRx', 'Muy/MRy', 'Estribos', 'Estado']
+    const cCols = [900, 850, 1600, 800, 700, 1250, 1250, 1000, 1089]
+    const cRows = []
+    const perCol = []
+
+    for (const col of columns) {
+      let an = null
+      try { an = analyzeColumn(col) } catch { /* incompleta */ }
+      if (!an) continue
+      const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
+      const cx = checkPoint(an.dirX.curve, Pu, MuX)
+      const cy = checkPoint(an.dirY.curve, Pu, MuY)
+      const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+      const est = calcEstribos({ estriboNum: col.estriboNum, longNum: col.lechos?.[0]?.num || 3, h: +col.h, b: +col.b })
+      const ex = excentricidad(MuX, Pu, +col.b, +col.h)
+      const ok = cx.ok && cy.ok && bi.ok
+      const arm = (col.lechos || []).map((L, i) => `L${i + 1}:${L.n}#${L.num}`).join(' ')
+
+      cRows.push([
+        col.nombre || '—', `${col.b}×${col.h}`, arm, fmt(an.dirX.params.Ast),
+        fmt(Pu), `${fmt(MuX)} / ${fmt(cx.MR)}`, `${fmt(MuY)} / ${fmt(cy.MR)}`,
+        `E#${col.estriboNum}@${est.s}`,
+        [run(ok ? 'VERIFICADO' : 'NO PASA', { size: 14, bold: true, color: ok ? OKC : BADC })],
+      ])
+
+      // Imágenes: sección + diagramas X/Y
+      const secImg = await prep(await svgToPng(columnSectionSvgString(col)).catch(() => null), 260).catch(() => null)
+      const dxImg = await prep(await svgToPng(interactionSvgString(an.dirX, { Mu: MuX, Pu, check: cx, color: '#2563a8', title: `Dirección X — P–Mx (h=${col.h})` })).catch(() => null), 300).catch(() => null)
+      const dyImg = await prep(await svgToPng(interactionSvgString(an.dirY, { Mu: MuY, Pu, check: cy, color: '#c94f2a', title: `Dirección Y — P–My (h=${col.b})` })).catch(() => null), 300).catch(() => null)
+
+      perCol.push(para([run(`Columna ${col.nombre || ''}`, { bold: true, size: 22 })], { before: 200, after: 60 }))
+      perCol.push(para([
+        run(`Con Pu = ${fmt(Pu)} ton, Mux = ${fmt(MuX)} ton·m y Muy = ${fmt(MuY)} ton·m `),
+        run(`(e = ${isFinite(ex.e) ? fmt(ex.e, 4) : '—'} m), el punto de demanda ${ok ? 'queda dentro' : 'NO queda dentro'} del diagrama de interacción: `),
+        run(`MRx = ${fmt(cx.MR)} t·m`, { bold: true, color: '1D4ED8' }), run(` ${cx.ok ? '≥' : '<'} Mux · `),
+        run(`MRy = ${fmt(cy.MR)} t·m`, { bold: true, color: 'B45309' }), run(` ${cy.ok ? '≥' : '<'} Muy · `),
+        run(`biaxial ${isFinite(bi.valor) ? fmt(bi.valor, 3) : '∞'} ${bi.ok ? '≤' : '>'} 1. `),
+        run(`Acero transversal: E#${col.estriboNum} @ ${est.s} cm (s1=${fmt(est.s1)}, s2=${fmt(est.s2)}, s3=${fmt(est.s3, 0)}).`),
+      ], { align: AlignmentType.JUSTIFIED }))
+      if (secImg) perCol.push(imgPara(secImg))
+      if (dxImg) perCol.push(imgPara(dxImg))
+      if (dyImg) perCol.push(imgPara(dyImg))
+    }
+
+    colBlocks.push(dataTable(cHead, cRows, cCols, { size: 15 }))
+    colBlocks.push(...perCol)
+  } else {
+    colBlocks.push(para([run('[Sin columnas capturadas] ', { bold: true, color: 'B45309' }), run('Agregue columnas en la pestaña "Columnas" para incluir aquí su diseño por flexocompresión.')], { align: AlignmentType.JUSTIFIED }))
+  }
+
   // ── Intro text ──
   const introTxt = M.descripcion?.trim()
     ? M.descripcion.trim()
@@ -335,8 +392,8 @@ export async function generateMemoriaDocx({ sections = [], meta = {}, dcheck = n
 
     H2('Estado límite de servicio', false),
     para('El estado límite de servicio se revisó conforme a las NTC 2023, las cuales establecen que la deflexión vertical máxima permisible está en función de la longitud de los elementos (L/240, siendo L la longitud del elemento horizontal). Las deflexiones actuantes obtenidas del modelo resultaron menores a las permisibles, por lo que el diseño propuesto es aceptable.', { align: AlignmentType.JUSTIFIED }),
-    H2('Diseño de columnas'),
-    para([run('[Sección en desarrollo] ', { bold: true, color: 'B45309' }), run('La columna más crítica presenta momento, por lo que se llevará a cabo un diseño de flexocompresión a partir de la carga axial (Pu) y el momento (Mu) últimos obtenidos del análisis, con la respectiva revisión de la resistencia P-M y el detalle de armado. Pendiente de captura — se completará con el módulo de columnas.')], { align: AlignmentType.JUSTIFIED }),
+    H2('Diseño de columnas', columns.length > 0),
+    ...colBlocks,
     H2('Diseño de cimentación'),
     para([run('[Sección en desarrollo] ', { bold: true, color: 'B45309' }), run('Se realizará la revisión del diseño de cimentación a base de zapatas aisladas y corridas y contratrabes. Pendiente de captura.')], { align: AlignmentType.JUSTIFIED }),
 

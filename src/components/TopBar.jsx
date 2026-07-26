@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import useBeamStore from '../store/useBeamStore'
+import useColumnStore from '../store/useColumnStore'
 
 const SCALE_PRESETS = [
   { label: '50:1', value: 0.02 },
@@ -17,6 +18,8 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
   const selectSection = useBeamStore((s) => s.selectSection)
   const removeSection = useBeamStore((s) => s.removeSection)
   const createSection = useBeamStore((s) => s.createSection)
+  const columnsCount = useColumnStore((s) => s.columns.length)
+  const hasContent = sections.length > 0 || columnsCount > 0
 
   const [open, setOpen] = useState(false)
   const [custom, setCustom] = useState('')
@@ -90,7 +93,7 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
         <button
           className="btn"
           onClick={() => setVerifyOpen(!verifyOpen)}
-          disabled={sections.length === 0}
+          disabled={!hasContent}
           style={{
             fontSize: 12, padding: '5px 12px',
             background: '#e8830a', color: '#fff',
@@ -232,7 +235,7 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
         <button
           className="btn btn-secondary"
           onClick={onSave}
-          disabled={sections.length === 0}
+          disabled={!hasContent}
           style={{ fontSize: 12, padding: '6px 10px' }}
           title="Guardar proyecto (.json)"
         >
@@ -248,7 +251,7 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
         <button
           className="btn btn-secondary"
           onClick={onExportSvg}
-          disabled={sections.length === 0}
+          disabled={!hasContent}
           style={{ fontSize: 12 }}
         >
           SVG
@@ -339,7 +342,7 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
         <button
           className="btn btn-export"
           onClick={onExportDxf}
-          disabled={sections.length === 0}
+          disabled={!hasContent}
           style={{ fontSize: 12 }}
         >
           Exportar DXF
