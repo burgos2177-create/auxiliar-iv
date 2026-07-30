@@ -9,6 +9,8 @@ import { interactionSvgString } from './columnsSvg'
 
 const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
 
+const esc0 = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
 function fmt(v, dec = 4) {
   if (v === null || v === undefined || isNaN(v)) return '—'
   return Number(v).toFixed(dec)
@@ -307,7 +309,7 @@ export function computeSectionResults(t) {
 // ═══════════════════════════════════════════════════════════════
 // Verificación de columnas (flexocompresión) — bloque HTML
 // ═══════════════════════════════════════════════════════════════
-function renderColumnas(columnsArr) {
+function renderColumnas(columnsArr, envStats = null) {
   if (!columnsArr || !columnsArr.length) return ''
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -333,7 +335,7 @@ function renderColumnas(columnsArr) {
     const env = col.envelope
     if (env?.points?.length) {
       const ev = evaluateEnvelope(env.points, an.dirX, an.dirY, env.mapping || 'M33X')
-      const filas = [...ev.results].sort((a, b) => (b.util || 0) - (a.util || 0)).slice(0, 12).map((r) => `
+      const filas = [...ev.results].sort((a, b) => (b.util || 0) - (a.util || 0)).map((r) => `
         <tr${r.id === ev.critical?.id ? ' style="background:#fff8e1"' : ''}>
           <td>${esc(r.member)}</td><td>${esc(r.tipo)}</td>
           <td>${fmt(r.Pu, 2)}</td><td>${fmt(r.Mux, 2)}</td><td>${fmt(r.Muy, 2)}</td>
@@ -341,6 +343,7 @@ function renderColumnas(columnsArr) {
           <td style="font-weight:700;color:${r.util > 1 ? '#dc2626' : '#15803d'}">${isFinite(r.util) ? fmt(r.util, 3) : '∞'}</td>
           <td style="font-weight:700;color:${r.ok ? '#15803d' : '#dc2626'}">${r.ok ? '✓' : '✗'}</td>
         </tr>`).join('')
+      if (envStats) { envStats.elementos++; envStats.total += ev.total; envStats.pasan += ev.passing }
       envHtml = `
         <div style="font-size:14px;font-weight:800;margin:18px 0 8px;color:#0f172a">
           Envolvente ${esc(env.combo || '')} — ${ev.passing}/${ev.total} dentro
@@ -348,7 +351,7 @@ function renderColumnas(columnsArr) {
         </div>
         <table class="summary"><tr><th>Miembro</th><th>Env.</th><th>Pu (t)</th><th>Mux</th><th>Muy</th>
           <th>MRx</th><th>MRy</th><th>Util.</th><th></th></tr>${filas}</table>
-        ${ev.total > 12 ? `<div style="font-size:10px;color:#6b7280;margin-top:4px">Se listan los 12 casos de mayor utilización de ${ev.total}.</div>` : ''}`
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">Se listan los ${ev.total} ejemplares del reporte, ordenados por utilización.</div>`
     }
 
     // Tabla de puntos del diagrama
@@ -435,6 +438,8 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
   const dateStr = now.toLocaleDateString('es-MX') + ' — ' + now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 
   const summaryRows = []
+  // Estadísticas de ejemplares (miembros de las envolventes cargadas)
+  const envStats = { elementos: 0, total: 0, pasan: 0, sinEnv: 0 }
 
   let sectionsHTML = ''
   sections.forEach((t, idx) => {
@@ -483,7 +488,7 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
     const bEnv = t.envelope
     if (bEnv?.points?.length) {
       const ev = evaluateBeamEnvelope(bEnv.points, { resP, resN, resC }, !!bEnv.invertir)
-      const filas = [...ev.results].sort((a, b) => b.util - a.util).slice(0, 15).map((rr) => `
+      const filas = [...ev.results].sort((a, b) => b.util - a.util).map((rr) => `
         <tr${rr.member === ev.critical?.member ? ' style="background:#fff8e1"' : ''}>
           <td>${rr.member}</td>
           <td>${fmt(rr.MuP, 2)}</td><td>${fmt(rr.MuN, 2)}</td><td>${fmt(rr.Vu, 2)}</td>
@@ -510,12 +515,15 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
               <th>Mu+/MR+</th><th>Mu−/MR−</th><th>Vu/Vr</th><th>Util.</th><th></th></tr>
           ${filas}
         </table>
-        ${ev.total > 15 ? `<div style="font-size:10px;color:#6b7280;margin-top:4px">Se listan los 15 miembros de mayor utilización de ${ev.total}.</div>` : ''}
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">Se listan los ${ev.total} ejemplares del reporte, ordenados por utilización.</div>
         <div class="vfinal ${ev.allOk ? 'vfinal-ok' : 'vfinal-fail'}">${ev.allOk
           ? `✓ TODOS los miembros de la envolvente quedan cubiertos por esta sección`
           : `✗ ${ev.failing} miembro(s) NO quedan cubiertos — revisar sección o armado`}</div>`
       // Si la envolvente no queda cubierta, la sección no cumple en el resumen
       if (!ev.allOk && summaryRows.length) summaryRows[summaryRows.length - 1].ok = false
+      envStats.elementos++; envStats.total += ev.total; envStats.pasan += ev.passing
+    } else {
+      envStats.sinEnv++
     }
 
     // Footer per section
@@ -523,7 +531,60 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
     sectionsHTML += '</div>'
   })
 
-  const columnasHTML = renderColumnas(columns)
+  const columnasHTML = renderColumnas(columns, envStats)
+
+  // ── Resumen de columnas ──
+  const colRows = (columns || []).map((col) => {
+    let an = null
+    try { an = analyzeColumn(col) } catch { /* incompleta */ }
+    if (!an) return { nombre: col.nombre, bxh: `${col.b}×${col.h}`, ok: false, hasData: false }
+    const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
+    const cx = checkPoint(an.dirX.curve, Pu, MuX)
+    const cy = checkPoint(an.dirY.curve, Pu, MuY)
+    const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+    let ok = cx.ok && cy.ok && bi.ok
+    const env = col.envelope
+    if (env?.points?.length) {
+      const ev = evaluateEnvelope(env.points, an.dirX, an.dirY, env.mapping || 'M33X')
+      if (!ev.allOk) ok = false
+    }
+    return { nombre: col.nombre, bxh: `${col.b}×${col.h}`, ok, hasData: true }
+  })
+
+  const colSummaryHTML = colRows.length ? `
+    <div style="font-size:14px;font-weight:800;color:#0f172a;margin:22px 0 8px">Columnas</div>
+    <table class="summary">
+      <tr><th>#</th><th>Columna</th><th>Dimensiones</th><th>Estado</th></tr>
+      ${colRows.map((r, i) => `<tr>
+        <td>${i + 1}</td><td>${esc0(r.nombre)}</td><td>${esc0(r.bxh)} cm</td>
+        <td style="color:${!r.hasData ? '#92400e' : r.ok ? '#15803d' : '#dc2626'};font-weight:700">
+          ${!r.hasData ? 'Sin datos' : r.ok ? '✓ CUMPLE' : '✗ NO CUMPLE'}
+        </td></tr>`).join('')}
+    </table>` : ''
+
+  // ── Leyenda global ──
+  const elemRows = [...summaryRows, ...colRows]
+  const conDatos = elemRows.filter((r) => r.hasData)
+  const elemOk = conDatos.length > 0 && conDatos.every((r) => r.ok)
+  const sinDatos = elemRows.length - conDatos.length
+  const ejemplaresOk = envStats.total > 0 && envStats.pasan === envStats.total
+  const todoOk = elemOk && sinDatos === 0 && (envStats.total === 0 || ejemplaresOk)
+
+  let leyenda
+  if (todoOk && envStats.total > 0) {
+    leyenda = `✓ Todas las secciones verificadas cumplen, y sus ${envStats.total} ejemplares del modelo
+      (${envStats.elementos} envolvente${envStats.elementos !== 1 ? 's' : ''} cargada${envStats.elementos !== 1 ? 's' : ''})
+      quedan cubiertos por el diseño propuesto.`
+  } else if (todoOk) {
+    leyenda = `✓ Todas las secciones verificadas cumplen.`
+  } else {
+    const partes = []
+    if (!elemOk) partes.push(`${conDatos.filter((r) => !r.ok).length} sección(es) no cumplen`)
+    if (envStats.total > 0 && !ejemplaresOk) partes.push(`${envStats.total - envStats.pasan} de ${envStats.total} ejemplares no quedan cubiertos`)
+    if (sinDatos > 0) partes.push(`${sinDatos} sin datos de cálculo`)
+    leyenda = `⚠ Revisar diseño: ${partes.join(' · ')}.`
+  }
+  const leyendaHTML = `<div class="vfinal ${todoOk ? 'vfinal-ok' : 'vfinal-fail'}" style="margin-top:20px">${leyenda}</div>`
 
   // Summary page
   let summaryHTML = `<div class="section-page">
@@ -537,9 +598,11 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
         </td>
       </tr>`).join('')}
     </table>
-    <div style="margin-top:20px;font-size:10px;color:#9ca3af">
+    ${colSummaryHTML}
+    ${leyendaHTML}
+    <div style="margin-top:14px;font-size:10px;color:#9ca3af">
       Generado con Auxiliar IV v0.2 — ${dateStr}<br>
-      Trabes: ${sections.length} · Columnas: ${columns.length}
+      Trabes: ${sections.length} · Columnas: ${columns.length}${envStats.total ? ` · Ejemplares del modelo revisados: ${envStats.total}` : ''}
     </div>
   </div>`
 

@@ -268,6 +268,33 @@ function computeChecks(t) {
   return checks
 }
 
+// ── Rejilla compacta de ejemplares (miembros de una envolvente) ──
+// Devuelve la nueva "y" tras dibujarla. Se listan TODOS, en varias
+// columnas para que quepan; los que no pasan van en rojo.
+function drawEjemplares(doc, ev, x, y, maxW, pageH, marginT, onNewPage) {
+  const rows = [...ev.results].sort((a, b) => (b.util || 0) - (a.util || 0))
+  const perRow = 6
+  const colW = maxW / perRow
+  doc.setFontSize(6)
+  setColor(doc, COL.tx3)
+  doc.text(`Ejemplares revisados (${ev.total}) - miembro : utilizacion`, x, y)
+  y += 3.4
+
+  for (let i = 0; i < rows.length; i += perRow) {
+    if (y > pageH - 18) { onNewPage(); y = marginT }
+    const slice = rows.slice(i, i + perRow)
+    slice.forEach((r, j) => {
+      const cxp = x + j * colW
+      const util = isFinite(r.util) ? r.util.toFixed(2) : 'inf'
+      setColor(doc, r.ok ? COL.tx2 : COL.warn)
+      doc.setFontSize(6)
+      doc.text(`${r.ok ? '' : 'X '}M-${r.member}: ${util}`, cxp, y)
+    })
+    y += 3.1
+  }
+  return y + 1
+}
+
 // ── Resistencias de una trabe (para evaluar su envolvente) ──────
 function computeSectionResultsLite(t) {
   const calc = t.calc || {}
@@ -359,6 +386,7 @@ function drawColumnCard(doc, col, y, marginL, contentW) {
   }
 
   let ok = true
+  let envOut = null
   if (an) {
     const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
     const cx = checkPoint(an.dirX.curve, Pu, MuX)
@@ -394,11 +422,12 @@ function drawColumnCard(doc, col, y, marginL, contentW) {
       setColor(doc, ev.allOk ? COL.ok : COL.warn)
       const crit = ev.critical
       doc.text(
-        `Envolvente ${env.combo || ''}: ${ev.passing}/${ev.total} dentro` +
-        (crit ? `  ·  crítico M-${crit.member} (util ${isFinite(crit.util) ? crit.util.toFixed(3) : '∞'})` : ''),
+        `Envolvente: ${ev.passing}/${ev.total} ejemplares dentro` +
+        (crit ? ` | critico M-${crit.member} (${isFinite(crit.util) ? crit.util.toFixed(3) : 'inf'})` : ''),
         tx, ty,
       )
       if (!ev.allOk) ok = false
+      envOut = ev
     }
   } else {
     ty += 7
@@ -407,7 +436,7 @@ function drawColumnCard(doc, col, y, marginL, contentW) {
     doc.text('Datos incompletos — revisar geometría y lechos.', tx, ty)
   }
 
-  return { cardH, ok }
+  return { cardH, ok, env: envOut }
 }
 
 // ── Main report generator ───────────────────────────────────
@@ -429,6 +458,9 @@ export function generateReport(sections, projectName = '', columns = []) {
   let pageNum = 1
   let hasWarnings = false
   const incompleteSections = []
+  // Ejemplares (miembros de las envolventes cargadas)
+  const envStats = { elementos: 0, total: 0, pasan: 0 }
+  const envBlocks = [] // { nombre, ev } para la sección de ejemplares
 
   // ── Header ──
   doc.setFontSize(16)
@@ -437,7 +469,7 @@ export function generateReport(sections, projectName = '', columns = []) {
   y += 5
   doc.setFontSize(9)
   setColor(doc, COL.tx3)
-  doc.text('Auxiliar IV — Detallador de elementos de concreto', marginL, y)
+  doc.text('Auxiliar IV - Detallador de elementos de concreto', marginL, y)
 
   if (projectName.trim()) {
     y += 4.5
@@ -615,13 +647,16 @@ export function generateReport(sections, projectName = '', columns = []) {
       doc.setFontSize(7)
       setColor(doc, ev.allOk ? COL.ok : COL.warn)
       const crit = ev.critical
+      doc.setFontSize(6.5)
       doc.text(
-        `Envolvente ${bEnv.combo || ''}: ${ev.passing}/${ev.total} miembros pasan` +
-        (crit ? `  ·  crítico M-${crit.member} (util ${isFinite(crit.util) ? crit.util.toFixed(3) : '∞'})` : '') +
-        `  ·  Mu+ ${ev.globalMuP.toFixed(2)} / Mu− ${ev.globalMuN.toFixed(2)} / Vu ${ev.globalVu.toFixed(2)}`,
+        `Envolvente: ${ev.passing}/${ev.total} ejemplares pasan` +
+        (crit ? ` | critico M-${crit.member} (${isFinite(crit.util) ? crit.util.toFixed(3) : 'inf'})` : '') +
+        ` | Mu+ ${ev.globalMuP.toFixed(2)} / Mu- ${ev.globalMuN.toFixed(2)} / Vu ${ev.globalVu.toFixed(2)}`,
         tblX, cardY + cardH - 5,
       )
       if (!ev.allOk) hasWarnings = true
+      envStats.elementos++; envStats.total += ev.total; envStats.pasan += ev.passing
+      envBlocks.push({ nombre: t.nombre || 'Trabe', ev })
     }
 
     y = cardY + cardH + 5
@@ -633,7 +668,7 @@ export function generateReport(sections, projectName = '', columns = []) {
     y += 2
     doc.setFontSize(11)
     setColor(doc, COL.tx)
-    doc.text('Columnas — revisión por flexocompresión', marginL, y)
+    doc.text('Columnas - revision por flexocompresion', marginL, y)
     y += 2
     setDraw(doc, COL.accent)
     doc.setLineWidth(0.4)
@@ -642,10 +677,43 @@ export function generateReport(sections, projectName = '', columns = []) {
 
     columns.forEach((col) => {
       if (y > pageH - 68) { doc.addPage(); pageNum++; y = marginT }
-      const { cardH, ok } = drawColumnCard(doc, col, y, marginL, contentW)
+      const { cardH, ok, env: cEv } = drawColumnCard(doc, col, y, marginL, contentW)
       if (!ok) hasWarnings = true
+      if (cEv) {
+        envStats.elementos++; envStats.total += cEv.total; envStats.pasan += cEv.passing
+        envBlocks.push({ nombre: col.nombre || 'Columna', ev: cEv })
+      }
       y += cardH + 5
     })
+  }
+
+  // ── Ejemplares del modelo (todas las envolventes cargadas) ──
+  if (envBlocks.length) {
+    if (y > pageH - 50) { doc.addPage(); pageNum++; y = marginT }
+    y += 2
+    doc.setFontSize(11)
+    setColor(doc, COL.tx)
+    doc.text('Ejemplares del modelo - revision individual', marginL, y)
+    y += 2
+    setDraw(doc, COL.accent)
+    doc.setLineWidth(0.4)
+    doc.line(marginL, y, pageW - marginR, y)
+    y += 5
+
+    for (const blk of envBlocks) {
+      if (y > pageH - 26) { doc.addPage(); pageNum++; y = marginT }
+      doc.setFontSize(8)
+      setColor(doc, blk.ev.allOk ? COL.ok : COL.warn)
+      doc.text(
+        `${blk.nombre}: ${blk.ev.passing}/${blk.ev.total} ejemplares pasan` +
+        (blk.ev.critical ? ` | critico M-${blk.ev.critical.member} (${isFinite(blk.ev.critical.util) ? blk.ev.critical.util.toFixed(3) : 'inf'})` : ''),
+        marginL, y,
+      )
+      y += 3.6
+      y = drawEjemplares(doc, blk.ev, marginL, y, contentW, pageH, marginT,
+        () => { doc.addPage(); pageNum++ })
+      y += 3
+    }
   }
 
   // ── Summary at bottom ──
@@ -661,12 +729,36 @@ export function generateReport(sections, projectName = '', columns = []) {
   y += 6
 
   doc.setFontSize(10)
+  const ejemplaresOk = envStats.total > 0 && envStats.pasan === envStats.total
   if (hasWarnings) {
     setColor(doc, COL.warn)
-    doc.text('⚠  Se encontraron elementos que no cumplen. Revisar diseño.', marginL, y)
+    const partes = []
+    if (envStats.total > 0 && !ejemplaresOk) {
+      partes.push(`${envStats.total - envStats.pasan} de ${envStats.total} ejemplares no quedan cubiertos`)
+    }
+    doc.text(
+      partes.length
+        ? `AVISO - Revisar dise\u00F1o: ${partes.join(' | ')}.`
+        : 'AVISO - Se encontraron elementos que no cumplen. Revisar dise\u00F1o.',
+      marginL, y,
+    )
   } else {
     setColor(doc, COL.ok)
-    doc.text('Todos los elementos verificados cumplen.', marginL, y)
+    if (envStats.total > 0) {
+      doc.text(
+        `Todas las secciones verificadas cumplen, y sus ${envStats.total} ejemplares del modelo quedan cubiertos.`,
+        marginL, y,
+      )
+      y += 4.5
+      doc.setFontSize(8)
+      setColor(doc, COL.tx3)
+      doc.text(
+        `${envStats.elementos} envolvente(s) del modelo revisada(s): ${envStats.pasan}/${envStats.total} ejemplares dentro de la capacidad.`,
+        marginL, y,
+      )
+    } else {
+      doc.text('Todos los elementos verificados cumplen.', marginL, y)
+    }
   }
 
   // Incomplete sections warning
@@ -683,7 +775,7 @@ export function generateReport(sections, projectName = '', columns = []) {
   y += 6
   doc.setFontSize(7)
   setColor(doc, COL.tx3)
-  doc.text('Generado con Auxiliar IV — Detallador de elementos de concreto', marginL, y)
+  doc.text('Generado con Auxiliar IV - Detallador de elementos de concreto', marginL, y)
   doc.text(`Trabes: ${sections.length}  |  Columnas: ${columns.length}  |  P\u00E1ginas: ${pageNum}`, marginL, y + 3.5)
 
   // ── Watermark + Footer on each page ──
