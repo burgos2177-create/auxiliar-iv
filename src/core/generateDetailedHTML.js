@@ -4,7 +4,7 @@
 
 import { calcFlexion, calcCortante, VARILLAS } from './sectionCalculator'
 import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, excentricidad } from './columnCalculator'
-import { evaluateEnvelope } from './ramParser'
+import { evaluateEnvelope, evaluateBeamEnvelope } from './ramParser'
 import { interactionSvgString } from './columnsSvg'
 
 const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
@@ -477,6 +477,45 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
 
     if (!hasData) {
       sectionsHTML += `<div style="padding:20px;text-align:center;color:#6b7280;font-size:14px">Sin datos de cálculo para esta sección. Ingrese momentos y/o cortante en la pestaña Cálculo.</div>`
+    }
+
+    // ── Envolvente del modelo (reporte RAM), si la trabe la tiene ──
+    const bEnv = t.envelope
+    if (bEnv?.points?.length) {
+      const ev = evaluateBeamEnvelope(bEnv.points, { resP, resN, resC }, !!bEnv.invertir)
+      const filas = [...ev.results].sort((a, b) => b.util - a.util).slice(0, 15).map((rr) => `
+        <tr${rr.member === ev.critical?.member ? ' style="background:#fff8e1"' : ''}>
+          <td>${rr.member}</td>
+          <td>${fmt(rr.MuP, 2)}</td><td>${fmt(rr.MuN, 2)}</td><td>${fmt(rr.Vu, 2)}</td>
+          <td style="color:${rr.okP ? '#374151' : '#dc2626'}">${fmt(rr.ratioP, 3)}</td>
+          <td style="color:${rr.okN ? '#374151' : '#dc2626'}">${fmt(rr.ratioN, 3)}</td>
+          <td style="color:${rr.okV ? '#374151' : '#dc2626'}">${fmt(rr.ratioV, 3)}</td>
+          <td style="font-weight:700;color:${rr.util > 1 ? '#dc2626' : '#15803d'}">${fmt(rr.util, 3)}</td>
+          <td style="font-weight:700;color:${rr.ok ? '#15803d' : '#dc2626'}">${rr.ok ? '✓' : '✗'}</td>
+        </tr>`).join('')
+      sectionsHTML += `
+        <div style="font-size:16px;font-weight:800;color:#0f172a;border-bottom:2px solid #0f766e;padding-bottom:8px;margin:32px 0 14px;text-transform:uppercase;letter-spacing:0.04em">
+          Envolvente del modelo — ${ev.passing}/${ev.total} miembros pasan
+        </div>
+        <div class="data-grid">
+          ${[['Combinación', bEnv.combo || '—', ''], ['Mu+ máx', fmt(ev.globalMuP, 2), 'ton·m'],
+             ['Mu− máx', fmt(ev.globalMuN, 2), 'ton·m'], ['Vu máx', fmt(ev.globalVu, 2), 'ton'],
+             ['MR+', fmt(resP?.MRT, 2), 'ton·m'], ['MR−', fmt(resN?.MRT, 2), 'ton·m'],
+             ['Vr', fmt(resC?.Vr, 2), 'ton'],
+             ['Crítico', ev.critical ? `M-${ev.critical.member} (${fmt(ev.critical.util, 3)})` : '—', '']]
+            .map(([l, v, u]) => `<div><span class="l">${l}:</span> <span class="v">${v}</span>${u ? ` <span class="u">${u}</span>` : ''}</div>`).join('')}
+        </div>
+        <table class="summary">
+          <tr><th>Miembro</th><th>Mu+ (t·m)</th><th>Mu− (t·m)</th><th>Vu (t)</th>
+              <th>Mu+/MR+</th><th>Mu−/MR−</th><th>Vu/Vr</th><th>Util.</th><th></th></tr>
+          ${filas}
+        </table>
+        ${ev.total > 15 ? `<div style="font-size:10px;color:#6b7280;margin-top:4px">Se listan los 15 miembros de mayor utilización de ${ev.total}.</div>` : ''}
+        <div class="vfinal ${ev.allOk ? 'vfinal-ok' : 'vfinal-fail'}">${ev.allOk
+          ? `✓ TODOS los miembros de la envolvente quedan cubiertos por esta sección`
+          : `✗ ${ev.failing} miembro(s) NO quedan cubiertos — revisar sección o armado`}</div>`
+      // Si la envolvente no queda cubierta, la sección no cumple en el resumen
+      if (!ev.allOk && summaryRows.length) summaryRows[summaryRows.length - 1].ok = false
     }
 
     // Footer per section

@@ -3,7 +3,7 @@ import { computeGeometry } from './beamGeometry'
 import { DIAM } from './constants'
 import { calcFlexion, calcCortante } from './sectionCalculator'
 import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, barGrid, bdLookup } from './columnCalculator'
-import { evaluateEnvelope } from './ramParser'
+import { evaluateEnvelope, evaluateBeamEnvelope } from './ramParser'
 
 const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
 
@@ -266,6 +266,28 @@ function computeChecks(t) {
   }
 
   return checks
+}
+
+// ── Resistencias de una trabe (para evaluar su envolvente) ──────
+function computeSectionResultsLite(t) {
+  const calc = t.calc || {}
+  const fc = +t.fc || 250
+  const fy = +calc.fy || 4200
+  const b = +t.ancho, h = +t.peralte, r = +t.recub || 3
+  const ck = computeChecks(t)
+  let resC = null
+  const VuTon = +(calc.VuTon || t.vu || 0)
+  if (VuTon > 0) {
+    const AsUsada = +(calc.asManual != null ? calc.asManual
+      : Math.max(ck.flexP?.AsTotal || 0, ck.flexN?.AsTotal || 0) || 4.52)
+    resC = calcCortante({
+      fc, fy, b, h, r, L: +(calc.L || 0), VuTon, AsUsada,
+      varEstNum: +(calc.varEstNum || CAL_TO_NUM[t.calEst] || 2),
+      nramas: +(calc.nramas || 2),
+      conCompresion: calc.conCompresion, MuCorte: +(calc.MuCorte || 0),
+    })
+  }
+  return { resP: ck.flexP, resN: ck.flexN, resC }
 }
 
 // ── Dibujo de la sección de una columna (retícula real de barras) ──
@@ -583,6 +605,23 @@ export function generateReport(sections, projectName = '', columns = []) {
       doc.setFontSize(7)
       doc.setTextColor(180, 120, 20)
       doc.text(`Informaci\u00F3n incompleta (${filledFields.length}/6)`, tblX + 36, ty + 5, { align: 'center' })
+    }
+
+    // ── Envolvente del modelo, si esta trabe la tiene cargada ──
+    const bEnv = t.envelope
+    if (bEnv?.points?.length) {
+      const R = computeSectionResultsLite(t)
+      const ev = evaluateBeamEnvelope(bEnv.points, R, !!bEnv.invertir)
+      doc.setFontSize(7)
+      setColor(doc, ev.allOk ? COL.ok : COL.warn)
+      const crit = ev.critical
+      doc.text(
+        `Envolvente ${bEnv.combo || ''}: ${ev.passing}/${ev.total} miembros pasan` +
+        (crit ? `  ·  crítico M-${crit.member} (util ${isFinite(crit.util) ? crit.util.toFixed(3) : '∞'})` : '') +
+        `  ·  Mu+ ${ev.globalMuP.toFixed(2)} / Mu− ${ev.globalMuN.toFixed(2)} / Vu ${ev.globalVu.toFixed(2)}`,
+        tblX, cardY + cardH - 5,
+      )
+      if (!ev.allOk) hasWarnings = true
     }
 
     y = cardY + cardH + 5

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import useBeamStore from '../store/useBeamStore'
 import { VARILLAS, calcFlexion, calcCortante } from '../core/sectionCalculator'
 import MemoriaView from './MemoriaView'
+import BeamEnvelopePanel from './BeamEnvelopePanel'
 
 // ── Helpers ─────────────────────────────────────────────────
 function fmt(v, dec = 4) {
@@ -781,6 +782,11 @@ export default function CalculatorView() {
           varEstNum={+(calc.varEstNum || 2)} nramas={+(calc.nramas || 2)}
           resC={resC}
         />
+      )}
+
+      {/* ═══ ENVOLVENTE DEL MODELO (RAM) ═══ */}
+      {calcTab !== 'memoria' && (
+        <BeamEnvelopePanel R={{ resP: resP?.error ? null : resP, resN: resN?.error ? null : resN, resC }} />
       )}
     </div>
   )

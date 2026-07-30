@@ -41,6 +41,8 @@ const defaultSection = (nombre = '') => ({
   vu: '',
   vr: '',
   calc: defaultCalc(),
+  // Envolvente de elementos mecánicos (reporte RAM) — opcional
+  envelope: null, // { archivo, combo, invertir, points:[...] }
 })
 
 let counter = 0
@@ -105,6 +107,17 @@ const useBeamStore = create((set, get) => ({
     if ('VuTon' in patch) newForm.vu = Number(patch.VuTon) || ''
     if ('SL4' in patch && patch.SL4 !== null) newForm.sepLcuarto = Number(patch.SL4)
     if ('SLresto' in patch && patch.SLresto !== null) newForm.sepRest = Number(patch.SLresto)
+    if (s.selectedIdx >= 0 && s.selectedIdx < s.sections.length) {
+      const updated = [...s.sections]
+      updated[s.selectedIdx] = { ...newForm }
+      return { form: newForm, sections: updated }
+    }
+    return { form: newForm }
+  }),
+
+  // Adjunta / quita la envolvente de la sección activa
+  setEnvelope: (env) => set((s) => {
+    const newForm = { ...s.form, envelope: env }
     if (s.selectedIdx >= 0 && s.selectedIdx < s.sections.length) {
       const updated = [...s.sections]
       updated[s.selectedIdx] = { ...newForm }
