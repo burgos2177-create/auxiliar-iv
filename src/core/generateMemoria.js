@@ -10,7 +10,8 @@ import {
   computeSectionResults, renderFlexion, renderCortante,
 } from './generateDetailedHTML'
 import { sectionSvgString } from './sectionSvg'
-import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, excentricidad } from './columnCalculator'
+import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
+import { columnDemand, demandCase } from './columnDemand'
 import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -218,14 +219,15 @@ function columnasHTML(columnsArr, M) {
     let an = null
     try { an = analyzeColumn(col) } catch { /* datos incompletos */ }
     if (!an) continue
-    const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
-    const cx = checkPoint(an.dirX.curve, Pu, MuX)
-    const cy = checkPoint(an.dirY.curve, Pu, MuY)
-    const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+    // Demanda que rige: la envolvente del modelo si está cargada, si no el punto capturado
+    const D = columnDemand(col, an)
+    const caso = demandCase(D)
+    const Pu = caso.Pu, MuX = caso.Mux, MuY = caso.Muy
+    const cx = caso.cx, cy = caso.cy, bi = caso.bi
     const est = calcEstribos({ estriboNum: col.estriboNum, longNum: col.lechos?.[0]?.num || 3, h: +col.h, b: +col.b })
     const ex = excentricidad(MuX, Pu, +col.b, +col.h)
     const arm = (col.lechos || []).map((L, i) => `L${i + 1}: ${L.n}#${L.num}`).join(' · ')
-    const ok = cx.ok && cy.ok && bi.ok
+    const ok = D.ok
 
     rows.push(`<tr>
       <td><b>${esc(col.nombre)}</b></td>
@@ -236,19 +238,28 @@ function columnasHTML(columnsArr, M) {
       <td class="num">${fmt(MuX, 2)} / ${fmt(cx.MR, 2)}</td>
       <td class="num">${fmt(MuY, 2)} / ${fmt(cy.MR, 2)}</td>
       <td>E#${esc(col.estriboNum)}@${est.s}</td>
-      <td style="text-align:center"><span class="mark-pill" style="background:${ok ? '#f0fdf4' : '#fef2f2'};color:${ok ? '#15803d' : '#b91c1c'};border:1px solid ${ok ? '#86efac' : '#fca5a5'}">${ok ? 'VERIFICADO' : 'NO PASA'}</span></td>
+      <td style="text-align:center"><span class="mark-pill" style="background:${!D.evaluado ? '#fffbeb' : ok ? '#f0fdf4' : '#fef2f2'};color:${!D.evaluado ? '#92400e' : ok ? '#15803d' : '#b91c1c'};border:1px solid ${!D.evaluado ? '#fcd34d' : ok ? '#86efac' : '#fca5a5'}">${!D.evaluado ? 'SIN DEMANDA' : ok ? 'VERIFICADO' : 'NO PASA'}</span></td>
     </tr>`)
 
     blocks.push(`<div class="mem-trabe">
       <h3 class="mem">Columna ${esc(col.nombre)}</h3>
       <p class="mem-p">Se construyó el diagrama de interacción de la columna proponiendo profundidades del
       eje neutro y calculando, para cada una, las fuerzas por lecho y el bloque de compresión del concreto
-      (puntos POC, 1, falla balanceada D, 2, 3 y M0). Con Pu = <b>${fmt(Pu, 2)} ton</b>,
+      (puntos POC, 1, falla balanceada D, 2, 3 y M0).
+      ${D.fuente === 'envolvente'
+        ? `Los elementos mecánicos se tomaron de la envolvente del modelo (${D.env.total} ejemplares); rige el ejemplar ${esc(D.env.critical?.member ?? '')}.`
+        : D.fuente === 'ninguna'
+          ? 'No se capturaron elementos mecánicos para esta columna; se reporta únicamente su capacidad.'
+          : ''}
+      Con Pu = <b>${fmt(Pu, 2)} ton</b>,
       Mux = <b>${fmt(MuX, 2)} ton·m</b> y Muy = <b>${fmt(MuY, 2)} ton·m</b>
       (e = ${isFinite(ex.e) ? fmt(ex.e, 4) : '—'} m → ${esc(ex.modo.toLowerCase().replace('realizar ', ''))}),
       el punto de demanda ${ok ? 'queda dentro' : 'NO queda dentro'} del diagrama:
       MRx = ${fmt(cx.MR, 2)} t·m ${cx.ok ? '≥' : '<'} Mux · MRy = ${fmt(cy.MR, 2)} t·m ${cy.ok ? '≥' : '<'} Muy ·
       biaxial (Mux/MRx)²+(Muy/MRy)² = ${isFinite(bi.valor) ? fmt(bi.valor, 3) : '∞'} ${bi.ok ? '≤' : '>'} 1.
+      ${D.fuente === 'envolvente'
+        ? `Revisados los ${D.env.total} ejemplares del reporte, ${D.env.passing} quedan dentro del diagrama${D.env.allOk ? '' : ` y ${D.env.failing} lo rebasan`}.`
+        : ''}
       Acero transversal: <b>E#${esc(col.estriboNum)} @ ${est.s} cm</b>
       (s1 = ${fmt(est.s1, 2)}, s2 = ${fmt(est.s2, 2)}, s3 = ${fmt(est.s3, 0)} cm).</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;justify-content:center">

@@ -6,7 +6,8 @@ import InteractionDiagram from './InteractionDiagram'
 import Interaction3D from './Interaction3D'
 import ColumnExcelView from './ColumnExcelView'
 import { analyzeColumn, checkPoint, checkBiaxial, excentricidad } from '../core/columnCalculator'
-import { parseRamEnvelope, evaluateEnvelope } from '../core/ramParser'
+import { parseRamEnvelope } from '../core/ramParser'
+import { columnDemand } from '../core/columnDemand'
 
 export default function ColumnsView() {
   const columns = useColumnStore((s) => s.columns)
@@ -31,6 +32,8 @@ export default function ColumnsView() {
     try { return analyzeColumn(form) } catch { return null }
   }, [valid, form.b, form.h, form.r, form.fc, form.fy, form.epsC, JSON.stringify(form.lechos)]) // eslint-disable-line
 
+  // Punto capturado a mano — se sigue dibujando en los diagramas, pero NO
+  // decide el veredicto cuando hay envolvente cargada (ver `demanda`).
   const checks = useMemo(() => {
     if (!analysis) return null
     const Pu = +form.Pu || 0, MuX = +form.MuX || 0, MuY = +form.MuY || 0
@@ -43,11 +46,11 @@ export default function ColumnsView() {
   }, [analysis, form.Pu, form.MuX, form.MuY, form.b, form.h])
 
   // ── Envolvente (reporte RAM) ──
+  // La demanda que decide el veredicto: si hay envolvente cargada manda ella
+  // (todos sus ejemplares); si no, el punto capturado en el formulario.
   const env = form.envelope
-  const envEval = useMemo(() => {
-    if (!analysis || !env?.points?.length) return null
-    return evaluateEnvelope(env.points, analysis.dirX, analysis.dirY, env.mapping || 'M33X')
-  }, [analysis, env])
+  const demanda = useMemo(() => (analysis ? columnDemand(form, analysis) : null), [analysis, form])
+  const envEval = demanda?.env || null
 
   function handleEnvFile(e) {
     const file = e.target.files?.[0]
@@ -90,11 +93,25 @@ export default function ColumnsView() {
           + Nueva
         </button>
         <div style={{ flex: 1 }} />
-        {checks && (
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <Badge ok={checks.x.ok} label={`Mx ${checks.x.ok ? '✓' : '✗'}`} />
-            <Badge ok={checks.y.ok} label={`My ${checks.y.ok ? '✓' : '✗'}`} />
-            <Badge ok={checks.biaxial.ok} label={`Biaxial ${checks.biaxial.ok ? '✓' : '✗'}`} />
+        {demanda && (
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}
+            title={demanda.fuente === 'envolvente'
+              ? `Revisión contra los ${demanda.env.total} ejemplares de la envolvente cargada`
+              : demanda.fuente === 'manual'
+                ? 'Revisión del punto (Pu, Mux, Muy) capturado en el formulario'
+                : 'No hay demanda capturada ni envolvente cargada'}>
+            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--color-tx3)' }}>
+              {demanda.fuenteLabel}
+            </span>
+            {demanda.evaluado ? (
+              <>
+                <Badge ok={demanda.okX} label={`Mx ${demanda.okX ? '✓' : '✗'}`} />
+                <Badge ok={demanda.okY} label={`My ${demanda.okY ? '✓' : '✗'}`} />
+                <Badge ok={demanda.okBi} label={`Biaxial ${demanda.okBi ? '✓' : '✗'}`} />
+              </>
+            ) : (
+              <Badge tone="neutral" label="sin revisar" />
+            )}
           </div>
         )}
       </div>
@@ -182,6 +199,13 @@ export default function ColumnsView() {
                 )}
                 {envMsg && !env?.points?.length && (
                   <span style={{ fontSize: 10.5, color: '#c62828' }}>{envMsg}</span>
+                )}
+                {demanda?.fuente === 'envolvente' && demanda.manual?.hayManual && (
+                  <div style={{ flexBasis: '100%', fontSize: 10.5, color: 'var(--color-tx3)' }}>
+                    Con la envolvente cargada el veredicto lo dan sus {envEval.total} ejemplares;
+                    el punto capturado a mano (Pu = {(+form.Pu || 0)} t, Mux = {(+form.MuX || 0)}, Muy = {(+form.MuY || 0)} t·m)
+                    queda sólo como referencia.
+                  </div>
                 )}
               </div>
 
@@ -288,12 +312,14 @@ export default function ColumnsView() {
 
 const TD = { padding: '4px 8px', borderBottom: '1px solid var(--color-border)', whiteSpace: 'nowrap' }
 
-function Badge({ ok, label }) {
+function Badge({ ok, label, tone }) {
+  const neutral = tone === 'neutral'
   return (
     <span style={{
       fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 99, fontFamily: 'var(--font-mono)',
-      background: ok ? '#e8f5e9' : '#fdecea', color: ok ? '#15803d' : '#c62828',
-      border: `1px solid ${ok ? '#a5d6a7' : '#ef9a9a'}`,
+      background: neutral ? 'var(--color-panel)' : ok ? '#e8f5e9' : '#fdecea',
+      color: neutral ? 'var(--color-tx3)' : ok ? '#15803d' : '#c62828',
+      border: `1px solid ${neutral ? 'var(--color-border)' : ok ? '#a5d6a7' : '#ef9a9a'}`,
     }}>{label}</span>
   )
 }

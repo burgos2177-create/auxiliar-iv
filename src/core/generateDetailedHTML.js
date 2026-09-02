@@ -3,8 +3,9 @@
 // ══════════════════════════════════════════════════════════════
 
 import { calcFlexion, calcCortante, VARILLAS } from './sectionCalculator'
-import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, excentricidad } from './columnCalculator'
-import { evaluateEnvelope, evaluateBeamEnvelope } from './ramParser'
+import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
+import { evaluateBeamEnvelope } from './ramParser'
+import { columnDemand, demandCase } from './columnDemand'
 import { interactionSvgString } from './columnsSvg'
 
 const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
@@ -321,20 +322,21 @@ function renderColumnas(columnsArr, envStats = null) {
         <div style="font-size:20px;font-weight:800;color:#0f172a">COLUMNA — ${esc(col.nombre)}</div>
         <div style="color:#dc2626;padding:12px">Datos incompletos — revisar geometría y lechos.</div></div>`
     }
-    const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
-    const cx = checkPoint(an.dirX.curve, Pu, MuX)
-    const cy = checkPoint(an.dirY.curve, Pu, MuY)
-    const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+    // Demanda que decide: envolvente si la hay, si no el punto capturado
+    const D = columnDemand(col, an)
+    const caso = demandCase(D)
+    const Pu = caso.Pu, MuX = caso.Mux, MuY = caso.Muy
+    const cx = caso.cx, cy = caso.cy, bi = caso.bi
     const est = calcEstribos({ estriboNum: col.estriboNum, longNum: col.lechos?.[0]?.num || 3, h: +col.h, b: +col.b })
     const ex = excentricidad(MuX, Pu, +col.b, +col.h)
     const P = an.dirX.params
-    const allOk = cx.ok && cy.ok && bi.ok
+    const allOk = D.ok
 
     // Envolvente, si la hay
     let envHtml = ''
     const env = col.envelope
-    if (env?.points?.length) {
-      const ev = evaluateEnvelope(env.points, an.dirX, an.dirY, env.mapping || 'M33X')
+    if (D.env) {
+      const ev = D.env
       const filas = [...ev.results].sort((a, b) => (b.util || 0) - (a.util || 0)).map((r) => `
         <tr${r.id === ev.critical?.id ? ' style="background:#fff8e1"' : ''}>
           <td>${esc(r.member)}</td><td>${esc(r.tipo)}</td>
@@ -376,6 +378,13 @@ function renderColumnas(columnsArr, envStats = null) {
         ${esc(ex.modo)} — e = ${isFinite(ex.e) ? fmt(ex.e, 4) : '—'} m
         ${ex.eLim ? `vs 0.1·min(b,h) = ${fmt(ex.eLim, 4)} m` : ''}
       </div>
+      <div style="font-size:11px;color:#6b7280;margin-top:6px">
+        Elementos mecánicos tomados de: <b>${esc(caso.etiqueta)}</b>${D.fuente === 'envolvente'
+          ? ` — el veredicto de esta columna considera los ${D.env.total} ejemplares de la envolvente, no sólo el caso mostrado.`
+          : D.fuente === 'ninguna'
+            ? ' — captura Pu/Mux/Muy o carga la envolvente del modelo para revisar la columna.'
+            : '.'}
+      </div>
 
       <div style="font-size:16px;font-weight:800;color:#0f172a;border-bottom:2px solid #1d4ed8;padding-bottom:8px;margin:24px 0 14px;text-transform:uppercase">
         Puntos del diagrama — dirección X (peralte h = ${esc(col.h)} cm)
@@ -388,7 +397,7 @@ function renderColumnas(columnsArr, envStats = null) {
       </div>
 
       <div style="font-size:16px;font-weight:800;color:#0f172a;border-bottom:2px solid #9333ea;padding-bottom:8px;margin:24px 0 14px;text-transform:uppercase">
-        Verificaciones
+        Verificaciones — ${esc(caso.etiqueta)}
       </div>
       <table class="summary">
         <tr><th>Revisión</th><th>Actuante</th><th>Resistente</th><th>Ratio</th><th>Estado</th></tr>
@@ -416,9 +425,16 @@ function renderColumnas(columnsArr, envStats = null) {
 
       ${envHtml}
 
-      <div class="vfinal ${allOk ? 'vfinal-ok' : 'vfinal-fail'}">${allOk
-        ? `✓ DISEÑO VÁLIDO — el punto (Pu, Mux, Muy) queda dentro del diagrama de interacción`
-        : '✗ DISEÑO NO VÁLIDO — el punto queda fuera del diagrama; revisar sección o armado'}</div>
+      <div class="vfinal ${allOk && D.evaluado ? 'vfinal-ok' : 'vfinal-fail'}"${!D.evaluado
+        ? ' style="background:#fffbeb;border-color:#fcd34d;color:#92400e"' : ''}>${!D.evaluado
+        ? '— SIN DEMANDA CAPTURADA — la columna no se revisó; captura Pu/Mux/Muy o carga la envolvente del modelo'
+        : allOk
+          ? (D.fuente === 'envolvente'
+            ? `✓ DISEÑO VÁLIDO — los ${D.env.total} ejemplares de la envolvente quedan dentro del diagrama de interacción`
+            : '✓ DISEÑO VÁLIDO — el punto (Pu, Mux, Muy) queda dentro del diagrama de interacción')
+          : (D.fuente === 'envolvente'
+            ? `✗ DISEÑO NO VÁLIDO — ${D.env.total - D.env.passing} de ${D.env.total} ejemplares quedan fuera del diagrama; revisar sección o armado`
+            : '✗ DISEÑO NO VÁLIDO — el punto queda fuera del diagrama; revisar sección o armado')}</div>
 
       <div style="border-top:2px solid #4ecac4;padding-top:10px;margin-top:24px;font-size:10px;color:#9ca3af;text-align:right">
         IV Ingenierías · Auxiliar IV — Columnas por flexocompresión
@@ -537,28 +553,25 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
   const colRows = (columns || []).map((col) => {
     let an = null
     try { an = analyzeColumn(col) } catch { /* incompleta */ }
-    if (!an) return { nombre: col.nombre, bxh: `${col.b}×${col.h}`, ok: false, hasData: false }
-    const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
-    const cx = checkPoint(an.dirX.curve, Pu, MuX)
-    const cy = checkPoint(an.dirY.curve, Pu, MuY)
-    const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
-    let ok = cx.ok && cy.ok && bi.ok
-    const env = col.envelope
-    if (env?.points?.length) {
-      const ev = evaluateEnvelope(env.points, an.dirX, an.dirY, env.mapping || 'M33X')
-      if (!ev.allOk) ok = false
+    if (!an) return { nombre: col.nombre, bxh: `${col.b}×${col.h}`, ok: false, hasData: false, nota: 'Sin datos' }
+    const D = columnDemand(col, an)
+    return {
+      nombre: col.nombre, bxh: `${col.b}×${col.h}`,
+      ok: D.ok, hasData: D.evaluado,
+      nota: D.evaluado ? '' : 'Sin demanda',
+      fuente: D.fuenteLabel,
     }
-    return { nombre: col.nombre, bxh: `${col.b}×${col.h}`, ok, hasData: true }
   })
 
   const colSummaryHTML = colRows.length ? `
     <div style="font-size:14px;font-weight:800;color:#0f172a;margin:22px 0 8px">Columnas</div>
     <table class="summary">
-      <tr><th>#</th><th>Columna</th><th>Dimensiones</th><th>Estado</th></tr>
+      <tr><th>#</th><th>Columna</th><th>Dimensiones</th><th>Demanda</th><th>Estado</th></tr>
       ${colRows.map((r, i) => `<tr>
         <td>${i + 1}</td><td>${esc0(r.nombre)}</td><td>${esc0(r.bxh)} cm</td>
+        <td>${esc0(r.fuente || '—')}</td>
         <td style="color:${!r.hasData ? '#92400e' : r.ok ? '#15803d' : '#dc2626'};font-weight:700">
-          ${!r.hasData ? 'Sin datos' : r.ok ? '✓ CUMPLE' : '✗ NO CUMPLE'}
+          ${!r.hasData ? esc0(r.nota || 'Sin datos') : r.ok ? '✓ CUMPLE' : '✗ NO CUMPLE'}
         </td></tr>`).join('')}
     </table>` : ''
 
@@ -581,7 +594,7 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
     const partes = []
     if (!elemOk) partes.push(`${conDatos.filter((r) => !r.ok).length} sección(es) no cumplen`)
     if (envStats.total > 0 && !ejemplaresOk) partes.push(`${envStats.total - envStats.pasan} de ${envStats.total} ejemplares no quedan cubiertos`)
-    if (sinDatos > 0) partes.push(`${sinDatos} sin datos de cálculo`)
+    if (sinDatos > 0) partes.push(`${sinDatos} sin datos de cálculo o sin demanda capturada`)
     leyenda = `⚠ Revisar diseño: ${partes.join(' · ')}.`
   }
   const leyendaHTML = `<div class="vfinal ${todoOk ? 'vfinal-ok' : 'vfinal-fail'}" style="margin-top:20px">${leyenda}</div>`

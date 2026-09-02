@@ -12,7 +12,8 @@ import {
 import { computeSectionResults, LOGO_SVG } from './generateDetailedHTML'
 import { sectionSvgString } from './sectionSvg'
 import { svgToPng, normalizeMeta } from './generateMemoria'
-import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, excentricidad } from './columnCalculator'
+import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
+import { columnDemand, demandCase } from './columnDemand'
 import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
 
 // ── palette ──
@@ -279,20 +280,22 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
       let an = null
       try { an = analyzeColumn(col) } catch { /* incompleta */ }
       if (!an) continue
-      const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
-      const cx = checkPoint(an.dirX.curve, Pu, MuX)
-      const cy = checkPoint(an.dirY.curve, Pu, MuY)
-      const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+      // Demanda que rige: la envolvente del modelo si está cargada, si no el punto capturado
+      const D = columnDemand(col, an)
+      const caso = demandCase(D)
+      const Pu = caso.Pu, MuX = caso.Mux, MuY = caso.Muy
+      const cx = caso.cx, cy = caso.cy, bi = caso.bi
       const est = calcEstribos({ estriboNum: col.estriboNum, longNum: col.lechos?.[0]?.num || 3, h: +col.h, b: +col.b })
       const ex = excentricidad(MuX, Pu, +col.b, +col.h)
-      const ok = cx.ok && cy.ok && bi.ok
+      const ok = D.ok
       const arm = (col.lechos || []).map((L, i) => `L${i + 1}:${L.n}#${L.num}`).join(' ')
 
       cRows.push([
         col.nombre || '—', `${col.b}×${col.h}`, arm, fmt(an.dirX.params.Ast),
         fmt(Pu), `${fmt(MuX)} / ${fmt(cx.MR)}`, `${fmt(MuY)} / ${fmt(cy.MR)}`,
         `E#${col.estriboNum}@${est.s}`,
-        [run(ok ? 'VERIFICADO' : 'NO PASA', { size: 14, bold: true, color: ok ? OKC : BADC })],
+        [run(!D.evaluado ? 'SIN DEMANDA' : ok ? 'VERIFICADO' : 'NO PASA',
+          { size: 14, bold: true, color: !D.evaluado ? 'B45309' : ok ? OKC : BADC })],
       ])
 
       // Imágenes: sección + diagramas X/Y
@@ -302,11 +305,20 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
 
       perCol.push(para([run(`Columna ${col.nombre || ''}`, { bold: true, size: 22 })], { before: 200, after: 60 }))
       perCol.push(para([
+        run(D.fuente === 'envolvente'
+          ? `Los elementos mecánicos se tomaron de la envolvente del modelo (${D.env.total} ejemplares); rige el ejemplar ${D.env.critical?.member ?? ''}. `
+          : D.fuente === 'ninguna'
+            ? 'No se capturaron elementos mecánicos para esta columna; se reporta únicamente su capacidad. '
+            : ''),
         run(`Con Pu = ${fmt(Pu)} ton, Mux = ${fmt(MuX)} ton·m y Muy = ${fmt(MuY)} ton·m `),
         run(`(e = ${isFinite(ex.e) ? fmt(ex.e, 4) : '—'} m), el punto de demanda ${ok ? 'queda dentro' : 'NO queda dentro'} del diagrama de interacción: `),
         run(`MRx = ${fmt(cx.MR)} t·m`, { bold: true, color: '1D4ED8' }), run(` ${cx.ok ? '≥' : '<'} Mux · `),
         run(`MRy = ${fmt(cy.MR)} t·m`, { bold: true, color: 'B45309' }), run(` ${cy.ok ? '≥' : '<'} Muy · `),
         run(`biaxial ${isFinite(bi.valor) ? fmt(bi.valor, 3) : '∞'} ${bi.ok ? '≤' : '>'} 1. `),
+        ...(D.fuente === 'envolvente'
+          ? [run(`Revisados los ${D.env.total} ejemplares del reporte, ${D.env.passing} quedan dentro del diagrama${D.env.allOk ? '' : ` y ${D.env.failing} lo rebasan`}. `,
+            { color: D.env.allOk ? OKC : BADC })]
+          : []),
         run(`Acero transversal: E#${col.estriboNum} @ ${est.s} cm (s1=${fmt(est.s1)}, s2=${fmt(est.s2)}, s3=${fmt(est.s3, 0)}).`),
       ], { align: AlignmentType.JUSTIFIED }))
       if (secImg) perCol.push(imgPara(secImg))

@@ -2,8 +2,9 @@ import { jsPDF } from 'jspdf'
 import { computeGeometry } from './beamGeometry'
 import { DIAM } from './constants'
 import { calcFlexion, calcCortante } from './sectionCalculator'
-import { analyzeColumn, checkPoint, checkBiaxial, calcEstribos, barGrid, bdLookup } from './columnCalculator'
-import { evaluateEnvelope, evaluateBeamEnvelope } from './ramParser'
+import { analyzeColumn, calcEstribos, barGrid, bdLookup } from './columnCalculator'
+import { evaluateBeamEnvelope } from './ramParser'
+import { columnDemand, demandCase } from './columnDemand'
 
 const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
 
@@ -388,16 +389,16 @@ function drawColumnCard(doc, col, y, marginL, contentW) {
   let ok = true
   let envOut = null
   if (an) {
-    const Pu = +col.Pu || 0, MuX = +col.MuX || 0, MuY = +col.MuY || 0
-    const cx = checkPoint(an.dirX.curve, Pu, MuX)
-    const cy = checkPoint(an.dirY.curve, Pu, MuY)
-    const bi = checkBiaxial(an.dirX, an.dirY, Pu, MuX, MuY)
+    // La demanda que decide: envolvente si la hay, si no el punto capturado
+    const D = columnDemand(col, an)
+    const caso = demandCase(D)
+    envOut = D.env
 
     // Encabezado de tabla
     ty += 6
     doc.setFontSize(6.5)
     setColor(doc, COL.tx3)
-    doc.text('Revisión', tx, ty)
+    doc.text(`Revisión (${D.fuente === 'envolvente' ? caso.corto : D.fuenteLabel})`, tx, ty)
     doc.text('Resist.', tx + 28, ty, { align: 'right' })
     doc.text('Actuante', tx + 44, ty, { align: 'right' })
     doc.text('Ratio', tx + 58, ty, { align: 'right' })
@@ -407,16 +408,16 @@ function drawColumnCard(doc, col, y, marginL, contentW) {
     doc.line(tx, ty, tx + 70, ty)
     ty += 3.4
 
-    ok = drawVerifRow(doc, `Mx (Pu=${Pu.toFixed(1)}t)`, cx.MR, MuX, ty, tx) && ok
+    drawVerifRow(doc, `Mx (Pu=${caso.Pu.toFixed(1)}t)`, caso.cx.MR, caso.Mux, ty, tx)
     ty += 4
-    ok = drawVerifRow(doc, 'My', cy.MR, MuY, ty, tx) && ok
+    drawVerifRow(doc, 'My', caso.cy.MR, caso.Muy, ty, tx)
     ty += 4
-    ok = drawVerifRow(doc, 'Biaxial', 1, isFinite(bi.valor) ? bi.valor : 99, ty, tx) && ok
+    drawVerifRow(doc, 'Biaxial', 1, isFinite(caso.bi.valor) ? caso.bi.valor : 99, ty, tx)
+    ok = D.ok
 
     // Envolvente cargada
-    const env = col.envelope
-    if (env?.points?.length) {
-      const ev = evaluateEnvelope(env.points, an.dirX, an.dirY, env.mapping || 'M33X')
+    if (D.env) {
+      const ev = D.env
       ty += 5.5
       doc.setFontSize(7)
       setColor(doc, ev.allOk ? COL.ok : COL.warn)
@@ -426,8 +427,11 @@ function drawColumnCard(doc, col, y, marginL, contentW) {
         (crit ? ` | critico M-${crit.member} (${isFinite(crit.util) ? crit.util.toFixed(3) : 'inf'})` : ''),
         tx, ty,
       )
-      if (!ev.allOk) ok = false
-      envOut = ev
+    } else if (!D.evaluado) {
+      ty += 5.5
+      doc.setFontSize(7)
+      setColor(doc, COL.tx3)
+      doc.text('Sin demanda capturada — captura Pu/Mux/Muy o carga la envolvente del modelo.', tx, ty)
     }
   } else {
     ty += 7
