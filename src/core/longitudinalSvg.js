@@ -202,7 +202,23 @@ export function diagramSvg(r, caps, opts = {}) {
   const y0 = PAD.t + HM / 2
   const ym = (m) => y0 + (m / maxM) * (HM / 2) // positivo hacia abajo
   P(`<rect x="0" y="0" width="${W}" height="${HM + HV + PAD.t + PAD.b + 30}" fill="#fff"/>`)
+  // Zona que cubre el acero: verde con achurado muy tenue, bajo la envolvente de resistencia
+  const pid = `hatch-${String(r.id).replace(/[^A-Za-z0-9]/g, '')}`
+  P(`<defs><pattern id="${pid}" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="${C.ok}" stroke-width="1" opacity="0.22"/></pattern></defs>`)
+  const capPts = (cap, MR0) => (cap && cap.length ? cap.map((p) => [p.x, p.MR]) : [[0, MR0], [L, MR0]])
+  const capRegion = (pts, sign) => {
+    const d = pts.map(([x, m], i) => `${i === 0 ? 'M' : 'L'}${xs(x).toFixed(1)},${ym(sign * m).toFixed(1)}`).join(' ')
+    return `${d} L${xs(L).toFixed(1)},${y0.toFixed(1)} L${xs(0).toFixed(1)},${y0.toFixed(1)} Z`
+  }
+  for (const [pts, sign] of [[capPts(r.inf.cap, caps.MRP), 1], [capPts(r.sup.cap, caps.MRN), -1]]) {
+    const d = capRegion(pts, sign)
+    P(`<path d="${d}" fill="${C.ok}" opacity="0.07"/>`)
+    P(`<path d="${d}" fill="url(#${pid})"/>`)
+  }
   P(`<text x="${PAD.l}" y="${PAD.t - 10}" font-size="11" font-weight="700" fill="${C.ink}">Momento (t·m) · ${r.isElement ? 'E ' : 'M-'}${esc(r.id)} · L = ${f2(L)} m${r.supports && r.supports.length > 2 ? ` · ${r.supports.length - 2} apoyo(s) interior(es)` : ''}</text>`)
+  P(`<rect x="${(W - PAD.r - 150).toFixed(1)}" y="${PAD.t - 19}" width="12" height="10" fill="${C.ok}" opacity="0.25"/>`)
+  P(`<rect x="${(W - PAD.r - 150).toFixed(1)}" y="${PAD.t - 19}" width="12" height="10" fill="url(#${pid})"/>`)
+  P(`<text x="${(W - PAD.r - 134).toFixed(1)}" y="${PAD.t - 10}" font-size="9" fill="${C.ok}">cubierto por el acero</text>`)
   // zonas de bastón sombreadas
   for (const b of r.inf.bars) P(`<rect x="${xs(b.x0).toFixed(1)}" y="${y0.toFixed(1)}" width="${(xs(b.x1) - xs(b.x0)).toFixed(1)}" height="${(HM / 2).toFixed(1)}" fill="${C.bot}" opacity="0.08"/>`)
   for (const b of r.sup.bars) P(`<rect x="${xs(b.x0).toFixed(1)}" y="${PAD.t}" width="${(xs(b.x1) - xs(b.x0)).toFixed(1)}" height="${(HM / 2).toFixed(1)}" fill="${C.top}" opacity="0.08"/>`)
