@@ -114,6 +114,9 @@ export function matchSection(sec) {
   const nN = +sec.cantSup, vN = +sec.calSup
   const nBastP = +sec.cantBastonInf || 0, vBastP = +sec.calBastonInf || 0
   const nBastN = +sec.cantBastonSup || 0, vBastN = +sec.calBastonSup || 0
+  // As total de la sección actual (para el empate parcial)
+  const asSec = nP * (AREA_MAP[vP] || 0) + nBastP * (AREA_MAP[vBastP] || 0) +
+    nN * (AREA_MAP[vN] || 0) + nBastN * (AREA_MAP[vBastN] || 0)
 
   let exactMatch = null
   let partialMatch = null
@@ -136,9 +139,8 @@ export function matchSection(sec) {
       break
     }
 
-    // Partial: same b,h but different rebar — find closest by As
-    const asV = (v.AsP || 0) + (v.AsN || 0)
-    const dist = Math.abs(asV - 0) // just track first partial
+    // Parcial: misma b×h pero otro armado — la más cercana por As total
+    const dist = Math.abs(totalAs(v) - asSec)
     if (!partialMatch || dist < partialDist) {
       partialMatch = v
       partialDist = dist

@@ -50,13 +50,14 @@ export function columnSectionGroup(col, ox, oy, scale = 14) {
 
   const L = []
   const P = (s) => L.push(s)
-  const X = (v) => (ox + v).toFixed(1)
-  const Y = (v) => (oy + v).toFixed(1)
+  // Dos decimales de px: a 14 px/cm son 0.0007 cm → el DXF hereda la geometría exacta
+  const X = (v) => (ox + v).toFixed(2)
+  const Y = (v) => (oy + v).toFixed(2)
 
   // Concreto
-  P(`<rect x="${X(0)}" y="${Y(0)}" width="${bpx.toFixed(1)}" height="${hpx.toFixed(1)}" fill="none" stroke="#c4517a" stroke-width="2"/>`)
+  P(`<rect x="${X(0)}" y="${Y(0)}" width="${bpx.toFixed(2)}" height="${hpx.toFixed(2)}" fill="none" stroke="#c4517a" stroke-width="2"/>`)
   // Estribo + ganchos (como vigas: sobre la barra sup.-izq.)
-  P(`<rect x="${X(eiPx)}" y="${Y(eiPx)}" width="${ew.toFixed(1)}" height="${eh.toFixed(1)}" rx="${er.toFixed(1)}" fill="none" stroke="#1a7a5e" stroke-width="1.5"/>`)
+  P(`<rect x="${X(eiPx)}" y="${Y(eiPx)}" width="${ew.toFixed(2)}" height="${eh.toFixed(2)}" rx="${er.toFixed(2)}" fill="none" stroke="#1a7a5e" stroke-width="1.5"/>`)
   if (bars.length) {
     // Ganchos: nacen en la circunferencia de la varilla de esquina sup.-izq.
     // (anclados en r,r como en vigas) a 160° y 310°, con longitud 1.8·Øest.
@@ -73,7 +74,7 @@ export function columnSectionGroup(col, ox, oy, scale = 14) {
   // Barras
   for (const bar of bars) {
     const rB = Math.max((bar.diam / 2) * scale, 3.5)
-    P(`<circle cx="${X(bar.x * scale)}" cy="${Y(bar.y * scale)}" r="${rB.toFixed(1)}" fill="#ffd5c8" stroke="#c94f2a" stroke-width="1.2"/>`)
+    P(`<circle cx="${X(bar.x * scale)}" cy="${Y(bar.y * scale)}" r="${rB.toFixed(2)}" fill="#ffd5c8" stroke="#c94f2a" stroke-width="1.2"/>`)
   }
 
   // ── Cotas (mismo trazo que vigas: gris, flechas triangulares) ──

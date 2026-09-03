@@ -70,6 +70,15 @@ const useColumnStore = create((set, get) => ({
     return { form: newForm }
   }),
 
+  // Envolvente de cualquier columna por índice (la usa la pestaña Modelo)
+  setEnvelopeAt: (idx, env) => set((s) => {
+    if (idx < 0 || idx >= s.columns.length) return {}
+    const updated = [...s.columns]
+    updated[idx] = { ...updated[idx], envelope: env }
+    const form = idx === s.selectedIdx ? { ...s.form, envelope: env } : s.form
+    return { columns: updated, form }
+  }),
+
   selectColumn: (idx) => {
     const col = get().columns[idx]
     if (!col) return
@@ -97,6 +106,7 @@ const useColumnStore = create((set, get) => ({
 
   loadColumns: (columns) => {
     const fixed = (columns || []).map((c) => ({ ...defaultColumn(), ...c }))
+    counter = fixed.reduce((m, c) => Math.max(m, +(/^C-(\d+)$/.exec(c.nombre || '')?.[1] || 0)), 0)
     set({
       columns: fixed,
       selectedIdx: fixed.length > 0 ? 0 : -1,

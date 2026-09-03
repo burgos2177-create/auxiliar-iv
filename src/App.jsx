@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from 'react'
+import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
 import TopBar from './components/TopBar'
 import BeamForm from './components/BeamForm'
 import BeamCanvas from './components/BeamCanvas'
@@ -6,14 +6,19 @@ import MomentScale from './components/MomentScale'
 import CalculatorView from './components/CalculatorView'
 import BDGlobalView from './components/BDGlobalView'
 import ColumnsView from './components/ColumnsView'
+import ModelView from './components/ModelView'
 import MemoriaDialog from './components/MemoriaDialog'
 import useBeamStore from './store/useBeamStore'
 import useColumnStore from './store/useColumnStore'
+import useModelStore from './store/useModelStore'
 import { svgToDxf } from './core/svgToDxf'
 import { columnsGridSvg } from './core/columnsSvg'
 import { generateReport } from './core/generateReport'
 import { generateDetailedReport } from './core/generateDetailedHTML'
 import { initGlobalDB, getDB, getStats, onDBChange } from './core/globalDB'
+import { packProject, saveSnapshot, loadSnapshot, clearSnapshot, pushRecent, listRecents, timeAgo, debounce, isEmptyProject } from './core/autosave'
+import { buildDcheck } from './core/dcheckExport'
+import { evaluateModel } from './core/modelEnvelope'
 
 function download(content, filename, mime = 'text/plain') {
   const blob = new Blob([content], { type: mime })
@@ -25,6 +30,9 @@ function download(content, filename, mime = 'text/plain') {
   URL.revokeObjectURL(url)
 }
 
+// Guardar en localStorage con un pequeño retraso para no escribir en cada tecla
+const autosave = debounce((p) => saveSnapshot(p), 600)
+
 export default function App() {
   const svgRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -33,11 +41,22 @@ export default function App() {
   const calcAlert = useBeamStore((s) => s.calcAlert)
   const columns = useColumnStore((s) => s.columns)
   const loadColumns = useColumnStore((s) => s.loadColumns)
+  const model = useModelStore((s) => s.model)
+  const restoreModel = useModelStore((s) => s.restore)
+  const applyModel = useModelStore((s) => s.applyToSections)
   const [dxfScale, setDxfScale] = useState(1)
   const [projectName, setProjectName] = useState('')
   const [mainTab, setMainTab] = useState('detalle')
   const [dbCount, setDbCount] = useState(0)
   const [memoriaOpen, setMemoriaOpen] = useState(false)
+  const [recents, setRecents] = useState(() => listRecents())
+  const [toast, setToast] = useState(null)
+  const restored = useRef(false)
+
+  const showToast = useCallback((msg, tone = 'ok') => {
+    setToast({ msg, tone })
+    setTimeout(() => setToast(null), 4000)
+  }, [])
 
   // Init Global DB on mount
   useEffect(() => {
@@ -45,6 +64,35 @@ export default function App() {
     setDbCount(getStats().total)
     return onDBChange(() => setDbCount(getStats().total))
   }, [])
+
+  // ── Carga completa de un proyecto (archivo, reciente o autosave) ──
+  const applyProject = useCallback((data) => {
+    loadProject(Array.isArray(data.sections) ? data.sections : [])
+    loadColumns(Array.isArray(data.columns) ? data.columns : [])
+    restoreModel(data.model || null)
+    setProjectName(data.projectName !== undefined ? data.projectName : '')
+    if (data.dxfScale !== undefined) setDxfScale(data.dxfScale)
+  }, [loadProject, loadColumns, restoreModel])
+
+  // Recuperar la sesión anterior al arrancar
+  useEffect(() => {
+    if (restored.current) return
+    restored.current = true
+    const snap = loadSnapshot()
+    if (!snap) return
+    applyProject(snap)
+    showToast(`Sesión recuperada · ${snap.sections?.length || 0} trabe(s), ${snap.columns?.length || 0} columna(s)${snap.model?.points?.length ? ', modelo cargado' : ''} · ${timeAgo(snap.savedAt)}`)
+  }, [applyProject, showToast])
+
+  // Autoguardado en cada cambio
+  useEffect(() => {
+    if (!restored.current) return
+    autosave(packProject({ projectName, dxfScale, sections, columns, model }))
+  }, [projectName, dxfScale, sections, columns, model])
+
+  // Si cambian los nombres de trabes/columnas, re-repartir las envolventes del modelo
+  const namesKey = useMemo(() => [...sections.map((s) => 'T:' + s.nombre), ...columns.map((c) => 'C:' + c.nombre)].join('|'), [sections, columns])
+  useEffect(() => { if (model.points.length) applyModel() }, [namesKey]) // eslint-disable-line
 
   // SVG de export: vigas (canvas en vivo) + columnas (grid generado),
   // apiladas en un solo documento a 14 px/cm. Con forDxf=true el ancho/alto
@@ -94,9 +142,11 @@ export default function App() {
   }, [getSvgString, dxfScale, fileName])
 
   const handleSave = useCallback(() => {
-    const data = { version: 2, projectName, dxfScale, sections, columns }
+    const data = packProject({ projectName, dxfScale, sections, columns, model })
     download(JSON.stringify(data, null, 2), `${fileName}.json`, 'application/json')
-  }, [projectName, dxfScale, sections, columns, fileName])
+    pushRecent(data)
+    setRecents(listRecents())
+  }, [projectName, dxfScale, sections, columns, model, fileName])
 
   const handleVerifyResumido = useCallback(() => {
     if (sections.length === 0 && columns.length === 0) return
@@ -108,6 +158,16 @@ export default function App() {
     if (sections.length === 0 && columns.length === 0) return
     generateDetailedReport(sections, projectName, columns)
   }, [sections, columns, projectName])
+
+  // Double Check prellenado (nombres, resistencias y demandas); sólo faltan las capturas
+  const handleExportDcheck = useCallback((modelEval = null) => {
+    if (sections.length === 0 && columns.length === 0) return
+    const evalM = modelEval || (model.points.length ? evaluateModel(model, sections, columns) : null)
+    const data = buildDcheck({ projectName, sections, columns, modelEval: evalM })
+    const stamp = (projectName.trim() || 'proyecto').replace(/\s+/g, '_')
+    download(JSON.stringify(data), `DoubleCheck_${stamp}.dcheck`, 'application/json')
+    showToast(`Double Check exportado · ${data.sections.length} elemento(s) prellenados; falta añadir las capturas`)
+  }, [sections, columns, projectName, model, showToast])
 
   const handleOpen = useCallback(() => {
     fileInputRef.current?.click()
@@ -121,10 +181,12 @@ export default function App() {
       try {
         const data = JSON.parse(ev.target.result)
         if (data.sections && Array.isArray(data.sections)) {
-          loadProject(data.sections)
-          loadColumns(Array.isArray(data.columns) ? data.columns : [])
-          if (data.projectName !== undefined) setProjectName(data.projectName)
-          if (data.dxfScale !== undefined) setDxfScale(data.dxfScale)
+          applyProject(data)
+          pushRecent({ ...data, savedAt: new Date().toISOString() })
+          setRecents(listRecents())
+          showToast(`Proyecto abierto · ${data.sections.length} trabe(s), ${(data.columns || []).length} columna(s)`)
+        } else {
+          alert('El archivo no tiene secciones. Verifica que sea un proyecto de Auxiliar IV.')
         }
       } catch {
         alert('No se pudo leer el archivo. Verifica que sea un JSON válido.')
@@ -132,15 +194,71 @@ export default function App() {
     }
     reader.readAsText(file)
     e.target.value = ''
-  }, [loadProject, loadColumns])
+  }, [applyProject, showToast])
+
+  const handleOpenRecent = useCallback((name) => {
+    const r = listRecents().find((x) => x.name === name)
+    if (!r?.project) return
+    applyProject(r.project)
+    showToast(`Proyecto reciente "${name}" abierto`)
+  }, [applyProject, showToast])
+
+  const handleNew = useCallback(() => {
+    const current = packProject({ projectName, dxfScale, sections, columns, model })
+    if (!isEmptyProject(current) && !confirm('¿Empezar un proyecto nuevo? Lo que hay ahora queda en "Recientes" (y en tu último .json guardado).')) return
+    if (!isEmptyProject(current)) { pushRecent(current); setRecents(listRecents()) }
+    applyProject({ sections: [], columns: [], model: null, projectName: '', dxfScale: 1 })
+    clearSnapshot()
+    setMainTab('detalle')
+  }, [projectName, dxfScale, sections, columns, model, applyProject])
+
+  const tabBtn = (id, label, badge) => (
+    <button onClick={() => setMainTab(id)}
+      className="px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors"
+      style={{
+        background: mainTab === id ? 'var(--color-surface)' : 'transparent',
+        color: mainTab === id ? 'var(--color-accent)' : 'var(--color-muted)',
+        borderBottom: mainTab === id ? '2px solid var(--color-accent)' : '2px solid transparent',
+        position: 'relative',
+      }}>
+      {label}
+      {badge}
+    </button>
+  )
+  const pill = (n, tone) => (
+    <span style={{
+      marginLeft: 6, fontSize: 10, fontFamily: 'var(--font-mono)',
+      background: tone === 'bad' ? '#c62828' : (mainTab === 'x' ? 'var(--color-accent)' : 'var(--color-border)'),
+      color: tone === 'bad' ? '#fff' : 'var(--color-tx2)',
+      padding: '1px 6px', borderRadius: 99,
+    }}>{n}</span>
+  )
+
+  const modelMembers = useMemo(() => new Set(model.points.map((p) => p.member)).size, [model.points])
+  const modelUnassigned = useMemo(() => {
+    if (!model.points.length) return 0
+    const ev = evaluateModel(model, sections, columns)
+    return ev.sinAsignar.length + ev.huerfanos.length
+  }, [model, sections, columns])
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'var(--color-bg)' }}>
       <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleFileChange} />
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 56, right: 14, zIndex: 2000,
+          padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)',
+          background: toast.tone === 'ok' ? '#f0fdf4' : '#fffbeb',
+          border: `1.5px solid ${toast.tone === 'ok' ? '#86efac' : '#fcd34d'}`,
+          color: toast.tone === 'ok' ? '#15803d' : '#92400e', boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+        }}>{toast.msg}</div>
+      )}
       <TopBar
         onExportDxf={handleExportDxf} onExportSvg={handleExportSvg}
-        onSave={handleSave} onOpen={handleOpen} onVerifyResumido={handleVerifyResumido} onVerifyDetallado={handleVerifyDetallado}
-        onMemoria={() => setMemoriaOpen(true)}
+        onSave={handleSave} onOpen={handleOpen} onNew={handleNew}
+        recents={recents} onOpenRecent={handleOpenRecent}
+        onVerifyResumido={handleVerifyResumido} onVerifyDetallado={handleVerifyDetallado}
+        onMemoria={() => setMemoriaOpen(true)} onExportDcheck={() => handleExportDcheck(null)}
         dxfScale={dxfScale} setDxfScale={setDxfScale}
         projectName={projectName} setProjectName={setProjectName}
       />
@@ -151,67 +269,27 @@ export default function App() {
         projectName={projectName}
       />
       <div className="flex items-center gap-1 px-4 pt-2" style={{ background: 'var(--color-bg)' }}>
-        <button onClick={() => setMainTab('detalle')}
-          className="px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors"
-          style={{
-            background: mainTab === 'detalle' ? 'var(--color-surface)' : 'transparent',
-            color: mainTab === 'detalle' ? 'var(--color-accent)' : 'var(--color-muted)',
-            borderBottom: mainTab === 'detalle' ? '2px solid var(--color-accent)' : '2px solid transparent',
-          }}>
-          Detalle
-        </button>
-        <button onClick={() => setMainTab('calculo')}
-          className="px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors"
-          style={{
-            background: mainTab === 'calculo' ? 'var(--color-surface)' : 'transparent',
-            color: mainTab === 'calculo' ? 'var(--color-accent)' : 'var(--color-muted)',
-            borderBottom: mainTab === 'calculo' ? '2px solid var(--color-accent)' : '2px solid transparent',
-            position: 'relative',
-          }}>
-          Calculo
-          {calcAlert && (
-            <span style={{
-              position: 'absolute', top: 2, right: 2,
-              width: 8, height: 8, borderRadius: '50%',
-              background: '#ef4444', border: '1.5px solid var(--color-bg)',
-            }} />
-          )}
-        </button>
-        <button onClick={() => setMainTab('columnas')}
-          className="px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors"
-          style={{
-            background: mainTab === 'columnas' ? 'var(--color-surface)' : 'transparent',
-            color: mainTab === 'columnas' ? 'var(--color-accent)' : 'var(--color-muted)',
-            borderBottom: mainTab === 'columnas' ? '2px solid var(--color-accent)' : '2px solid transparent',
-          }}>
-          Columnas
-          {columns.length > 0 && (
-            <span style={{
-              marginLeft: 6, fontSize: 10, fontFamily: 'var(--font-mono)',
-              background: mainTab === 'columnas' ? 'var(--color-accent)' : 'var(--color-border)',
-              color: mainTab === 'columnas' ? '#fff' : 'var(--color-tx2)',
-              padding: '1px 6px', borderRadius: 99,
-            }}>{columns.length}</span>
-          )}
-        </button>
-        <button onClick={() => setMainTab('bdglobal')}
-          className="px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors"
-          style={{
-            background: mainTab === 'bdglobal' ? 'var(--color-surface)' : 'transparent',
-            color: mainTab === 'bdglobal' ? 'var(--color-accent)' : 'var(--color-muted)',
-            borderBottom: mainTab === 'bdglobal' ? '2px solid var(--color-accent)' : '2px solid transparent',
-            position: 'relative',
-          }}>
-          BD Global
-          {dbCount > 0 && (
-            <span style={{
-              marginLeft: 6, fontSize: 10, fontFamily: 'var(--font-mono)',
-              background: mainTab === 'bdglobal' ? 'var(--color-accent)' : 'var(--color-border)',
-              color: mainTab === 'bdglobal' ? '#fff' : 'var(--color-tx2)',
-              padding: '1px 6px', borderRadius: 99,
-            }}>{dbCount.toLocaleString()}</span>
-          )}
-        </button>
+        {tabBtn('detalle', 'Detalle')}
+        {tabBtn('calculo', 'Calculo', calcAlert && (
+          <span style={{
+            position: 'absolute', top: 2, right: 2,
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#ef4444', border: '1.5px solid var(--color-bg)',
+          }} />
+        ))}
+        {tabBtn('columnas', 'Columnas', columns.length > 0 && pill(columns.length))}
+        {tabBtn('modelo', 'Modelo', modelMembers > 0 && (
+          <>
+            {pill(modelMembers)}
+            {modelUnassigned > 0 && (
+              <span title={`${modelUnassigned} miembro(s) sin asignar`} style={{
+                position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: '50%',
+                background: '#ef4444', border: '1.5px solid var(--color-bg)',
+              }} />
+            )}
+          </>
+        ))}
+        {tabBtn('bdglobal', 'BD Global', dbCount > 0 && pill(dbCount.toLocaleString()))}
       </div>
       <div className="flex flex-1 overflow-hidden" style={{ display: mainTab === 'detalle' ? 'flex' : 'none' }}>
         <BeamForm />
@@ -223,6 +301,9 @@ export default function App() {
       </div>
       <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'columnas' ? 'flex' : 'none', flexDirection: 'column' }}>
         <ColumnsView />
+      </div>
+      <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'modelo' ? 'flex' : 'none', flexDirection: 'column' }}>
+        <ModelView onExportDcheck={handleExportDcheck} />
       </div>
       <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'bdglobal' ? 'flex' : 'none', flexDirection: 'column' }}>
         <BDGlobalView />

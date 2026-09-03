@@ -1,12 +1,11 @@
 import { jsPDF } from 'jspdf'
 import { computeGeometry, placeBastones } from './beamGeometry'
-import { DIAM } from './constants'
+import { DIAM, CAL_TO_NUM } from './constants'
 import { calcFlexion, calcCortante } from './sectionCalculator'
 import { analyzeColumn, calcEstribos, barGrid, bdLookup } from './columnCalculator'
 import { evaluateBeamEnvelope } from './ramParser'
 import { columnDemand, demandCase } from './columnDemand'
 
-const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
 
 // ── Colors ──────────────────────────────────────────────────
 const COL = {

@@ -3,12 +3,13 @@
 // ══════════════════════════════════════════════════════════════
 
 import { calcFlexion, calcCortante, VARILLAS } from './sectionCalculator'
+import { computeSectionResults } from './sectionResults'
+import { CAL_TO_NUM } from './constants'
 import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { evaluateBeamEnvelope } from './ramParser'
 import { columnDemand, demandCase } from './columnDemand'
 import { interactionSvgString } from './columnsSvg'
 
-const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
 
 const esc0 = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -242,68 +243,8 @@ export function renderCortante(resC, fc, fy, b, h, r, VuTon, L, AsUsada, varEstN
   return html
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Per-section calc — single source of truth (shared with memoria)
-// ═══════════════════════════════════════════════════════════════
-export function computeSectionResults(t) {
-  const calc = t.calc || {}
-  const fc = +t.fc || 250
-  const fy = +calc.fy || 4200
-  const b = +t.ancho, h = +t.peralte, r = +t.recub || 3
-  const MuP = +(calc.MuP || t.muPos || 0)
-  const MuN = +(calc.MuN || t.muNeg || 0)
-  const VuTon = +(calc.VuTon || t.vu || 0)
-  const L = +(calc.L || 0)
-  const varEstNum = +(calc.varEstNum || CAL_TO_NUM[t.calEst] || 2)
-  const nramas = +(calc.nramas || 2)
-
-  let resP = null, resN = null
-  if (MuP > 0 || +t.cantInf > 0) {
-    resP = calcFlexion({
-      fc, fy, b, h, r, MuTm: MuP,
-      varNum: +(calc.varPNum || CAL_TO_NUM[t.calInf] || 3),
-      varCount: +(calc.varPCount || t.cantInf || 0) || null,
-      bastonNum: +(calc.bastonPNum || CAL_TO_NUM[t.calBastonInf] || 3),
-      bastonCount: +(calc.bastonPCount || t.cantBastonInf || 0),
-    })
-    if (resP.error) resP = null
-  }
-  if (MuN > 0 || +t.cantSup > 0) {
-    resN = calcFlexion({
-      fc, fy, b, h, r, MuTm: MuN,
-      varNum: +(calc.varNNum || CAL_TO_NUM[t.calSup] || 3),
-      varCount: +(calc.varNCount || t.cantSup || 0) || null,
-      bastonNum: +(calc.bastonNNum || CAL_TO_NUM[t.calBastonSup] || 3),
-      bastonCount: +(calc.bastonNCount || t.cantBastonSup || 0),
-    })
-    if (resN.error) resN = null
-  }
-
-  const AsUsada = +(calc.asManual != null ? calc.asManual :
-    Math.max(resP?.AsTotal || 0, resN?.AsTotal || 0) || 4.52)
-
-  let resC = null
-  if (VuTon > 0) {
-    resC = calcCortante({
-      fc, fy, b, h, r, L, VuTon, AsUsada,
-      varEstNum, nramas,
-      conCompresion: calc.conCompresion, MuCorte: +(calc.MuCorte || 0),
-    })
-  }
-
-  const hasFlex = !!(resP || resN)
-  const hasCort = !!(resC && resC.Vr > 0)
-  const flexOk = (!resP || (resP.okMR && resP.okMin && resP.okMax && resP.okBmin)) &&
-    (!resN || (resN.okMR && resN.okMin && resN.okMax && resN.okBmin))
-  const cortOk = !hasCort || resC.okVr
-  const allOk = flexOk && cortOk
-  const hasData = hasFlex || hasCort
-
-  return {
-    calc, fc, fy, b, h, r, MuP, MuN, VuTon, L, varEstNum, nramas,
-    resP, resN, AsUsada, resC, hasFlex, hasCort, flexOk, cortOk, allOk, hasData,
-  }
-}
+// computeSectionResults vive ahora en ./sectionResults (se re-exporta por compatibilidad)
+export { computeSectionResults }
 
 // ═══════════════════════════════════════════════════════════════
 // Main export

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import useBeamStore from '../store/useBeamStore'
 import useColumnStore from '../store/useColumnStore'
+import { timeAgo } from '../core/autosave'
 
 const SCALE_PRESETS = [
   { label: '50:1', value: 0.02 },
@@ -12,7 +13,7 @@ const SCALE_PRESETS = [
   { label: '1:50', value: 50 },
 ]
 
-export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVerifyResumido, onVerifyDetallado, onMemoria, dxfScale, setDxfScale, projectName, setProjectName }) {
+export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onNew, recents = [], onOpenRecent, onVerifyResumido, onVerifyDetallado, onMemoria, onExportDcheck, dxfScale, setDxfScale, projectName, setProjectName }) {
   const sections = useBeamStore((s) => s.sections)
   const selectedIdx = useBeamStore((s) => s.selectedIdx)
   const selectSection = useBeamStore((s) => s.selectSection)
@@ -24,19 +25,22 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
   const [open, setOpen] = useState(false)
   const [custom, setCustom] = useState('')
   const [verifyOpen, setVerifyOpen] = useState(false)
+  const [recentOpen, setRecentOpen] = useState(false)
   const menuRef = useRef(null)
   const verifyRef = useRef(null)
+  const recentRef = useRef(null)
 
   // Close dropdowns on outside click
   useEffect(() => {
-    if (!open && !verifyOpen) return
+    if (!open && !verifyOpen && !recentOpen) return
     const handler = (e) => {
       if (open && menuRef.current && !menuRef.current.contains(e.target)) setOpen(false)
       if (verifyOpen && verifyRef.current && !verifyRef.current.contains(e.target)) setVerifyOpen(false)
+      if (recentOpen && recentRef.current && !recentRef.current.contains(e.target)) setRecentOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [open, verifyOpen])
+  }, [open, verifyOpen, recentOpen])
 
   const currentLabel = SCALE_PRESETS.find((p) => p.value === dxfScale)?.label
     || (dxfScale >= 1 ? `1:${dxfScale}` : `${Math.round(1 / dxfScale)}:1`)
@@ -71,6 +75,20 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
           v0.2
         </span>
       </div>
+
+      {/* Nuevo proyecto */}
+      <button
+        className="btn btn-secondary"
+        onClick={onNew}
+        style={{ fontSize: 12, padding: '6px 10px', flexShrink: 0 }}
+        title="Proyecto nuevo (lo actual queda en Recientes)"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+          <path d="M14 3v6h6" />
+          <path d="M12 12v6M9 15h6" />
+        </svg>
+      </button>
 
       {/* Project name */}
       <input
@@ -165,6 +183,23 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
                 Documento completo + Double Check
               </div>
             </div>
+            <div
+              onClick={() => { setVerifyOpen(false); onExportDcheck?.() }}
+              style={{
+                padding: '8px 12px', borderRadius: 5, cursor: 'pointer',
+                fontSize: 12, color: 'var(--color-tx2)', transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-border)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                Exportar a Double Check
+                <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--color-accent)', color: '#0d1117', padding: '1px 6px', borderRadius: 99 }}>NUEVO</span>
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--color-tx3)', marginTop: 2 }}>
+                .dcheck prellenado (Mr, Mu, Vu); s&oacute;lo faltan las capturas
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -221,17 +256,53 @@ export default function TopBar({ onExportDxf, onExportSvg, onSave, onOpen, onVer
 
       {/* File + Export buttons */}
       <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
-        <button
-          className="btn btn-secondary"
-          onClick={onOpen}
-          style={{ fontSize: 12, padding: '6px 10px' }}
-          title="Abrir proyecto (.json)"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1" />
-            <path d="M14 14l-4 4m0 0l-4-4m4 4V10" style={{ transform: 'rotate(180deg)', transformOrigin: '12px 14px' }} />
-          </svg>
-        </button>
+        <div style={{ position: 'relative', display: 'flex' }} ref={recentRef}>
+          <button
+            className="btn btn-secondary"
+            onClick={onOpen}
+            style={{ fontSize: 12, padding: '6px 10px', borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+            title="Abrir proyecto (.json)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1" />
+              <path d="M14 14l-4 4m0 0l-4-4m4 4V10" style={{ transform: 'rotate(180deg)', transformOrigin: '12px 14px' }} />
+            </svg>
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setRecentOpen(!recentOpen)}
+            disabled={recents.length === 0}
+            style={{ fontSize: 10, padding: '6px 5px', borderTopLeftRadius: 0, borderBottomLeftRadius: 0, marginLeft: -1 }}
+            title="Proyectos recientes"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {recentOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4,
+              background: 'var(--color-panel)', border: '1px solid var(--color-border)',
+              borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              padding: 6, minWidth: 240, zIndex: 100,
+            }}>
+              <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--color-tx3)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '4px 10px 6px' }}>Recientes</div>
+              {recents.map((r) => (
+                <div key={r.name}
+                  onClick={() => { setRecentOpen(false); onOpenRecent?.(r.name) }}
+                  style={{ padding: '7px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: 'var(--color-tx2)', transition: 'background 0.1s' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-border)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ fontWeight: 600 }}>{r.name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--color-tx3)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
+                    {r.trabes} trabe(s) · {r.columnas} columna(s) · {timeAgo(r.savedAt)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           className="btn btn-secondary"
           onClick={onSave}

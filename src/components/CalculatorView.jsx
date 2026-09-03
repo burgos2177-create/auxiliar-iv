@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import useBeamStore from '../store/useBeamStore'
 import { VARILLAS, calcFlexion, calcCortante } from '../core/sectionCalculator'
+import { CAL_TO_NUM } from '../core/constants'
 import MemoriaView from './MemoriaView'
 import BeamEnvelopePanel from './BeamEnvelopePanel'
 
@@ -16,7 +17,6 @@ const VAR_OPTS = VARILLAS.map((v) => ({
 }))
 
 // ── Mapping from detailer rebar string to VARILLAS num ──────
-const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
 
 // ── Small UI components ─────────────────────────────────────
 function Tag({ ok, children }) {

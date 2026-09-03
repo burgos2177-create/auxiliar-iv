@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 
-const CAL_TO_NUM = { '2': 2, '2.5': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10 }
-const NUM_TO_CAL = { 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10' }
+import { CAL_TO_NUM, NUM_TO_CAL } from '../core/constants'
 
 const defaultCalc = () => ({
   fy: 4200,
@@ -149,6 +148,15 @@ const useBeamStore = create((set, get) => ({
     return { form: newForm }
   }),
 
+  // Envolvente de cualquier sección por índice (la usa la pestaña Modelo)
+  setEnvelopeAt: (idx, env) => set((s) => {
+    if (idx < 0 || idx >= s.sections.length) return {}
+    const updated = [...s.sections]
+    updated[idx] = { ...updated[idx], envelope: env }
+    const form = idx === s.selectedIdx ? { ...s.form, envelope: env } : s.form
+    return { sections: updated, form }
+  }),
+
   // Write calculator results back to the detailer fields
   syncCalcResults: (results) => set((s) => {
     const patch = {}
@@ -190,6 +198,8 @@ const useBeamStore = create((set, get) => ({
     // Ensure all sections have calc block
     const fixed = sections.map((s) => ({ ...defaultSection(), ...s, calc: { ...defaultCalc(), ...(s.calc || {}) } }))
     const form = fixed.length > 0 ? { ...fixed[0] } : defaultSection()
+    // Que "+ Nueva" siga numerando después de las existentes (T-7 tras T-6)
+    counter = fixed.reduce((m, s) => Math.max(m, +(/^T-(\d+)$/.exec(s.nombre || '')?.[1] || 0)), 0)
     set({ sections: fixed, selectedIdx: fixed.length > 0 ? 0 : -1, form })
   },
 

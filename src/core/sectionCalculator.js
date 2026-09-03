@@ -6,6 +6,7 @@
 // ── Rebar table ───────────────────────────────────────────────
 export const VARILLAS = [
   { num: 2,  diam: 0.635, area: 0.32 },
+  { num: 2.5, diam: 0.794, area: 0.49 }, // estribo #2.5: antes se calculaba como #2 (0.32 cm²)
   { num: 3,  diam: 0.950, area: 0.71 },
   { num: 4,  diam: 1.270, area: 1.27 },
   { num: 5,  diam: 1.590, area: 1.98 },

@@ -9,7 +9,8 @@ import {
   Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType,
   ImageRun, VerticalAlign,
 } from 'docx'
-import { computeSectionResults, LOGO_SVG } from './generateDetailedHTML'
+import { LOGO_SVG } from './generateDetailedHTML'
+import { computeSectionResults } from './sectionResults'
 import { sectionSvgString } from './sectionSvg'
 import { svgToPng, normalizeMeta } from './generateMemoria'
 import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
