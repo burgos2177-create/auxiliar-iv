@@ -13,7 +13,7 @@ import { sectionSvgString } from './sectionSvg'
 import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { columnDemand, demandCase } from './columnDemand'
 import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
-import { analyzeGroup } from './longitudinal'
+import { analyzeGroup, unitLabel } from './longitudinal'
 import { elevationSvg } from './longitudinalSvg'
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -293,17 +293,17 @@ function longitudinalHTML(t) {
     : r.shearFail ? '<span style="color:#b91c1c;font-weight:700">CORTANTE</span>'
       : r.status === 'baston' ? '<span style="color:#1d4ed8;font-weight:700">CON BASTÓN</span>' : '<span style="color:#15803d;font-weight:700">CORRIDAS</span>'
   const rows = G.patterns.map((p) => `<tr>
-    <td><b>${p.label}</b></td><td>${p.members.length}: M-${esc(p.members.slice(0, 10).join(', '))}${p.members.length > 10 ? '…' : ''}</td>
+    <td><b>${p.label}</b></td><td>${p.members.length}: ${esc(p.members.slice(0, 10).map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', '))}${p.members.length > 10 ? '…' : ''}</td>
     <td>${bars(p.sample.inf.bars, t.calBastonInf)}</td><td>${bars(p.sample.sup.bars, t.calBastonSup)}</td><td style="text-align:center">${estado(p.sample)}</td></tr>`).join('')
   const alzados = G.patterns.map((p) => {
-    const e = elevationSvg(t, p.sample, { scale: 3.2, title: `${t.nombre || 'Trabe'} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`, subtitle: `M-${p.members.slice(0, 16).join(', M-')}${p.members.length > 16 ? ` … (+${p.members.length - 16})` : ''}` })
+    const e = elevationSvg(t, p.sample, { scale: 3.2, title: `${t.nombre || 'Trabe'} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`, subtitle: `${p.members.slice(0, 16).map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', ')}${p.members.length > 16 ? ` … (+${p.members.length - 16})` : ''}` })
     return `<div style="margin:8px 0">${e.svg.replace('<svg ', '<svg style="width:100%;height:auto" ')}</div>`
   }).join('')
   const ahorro = G.acero.ahorro != null
     ? ` frente a ${fmt(G.acero.uniforme, 0)} kg del diseño uniforme (${G.uniforme.inf.n}#${G.uniforme.inf.bar.num} / ${G.uniforme.sup.n}#${G.uniforme.sup.bar.num} corridas sin bastones): <b style="color:${G.acero.ahorro > 0 ? '#15803d' : '#b45309'}">${G.acero.ahorro >= 0 ? 'ahorro' : 'exceso'} de ${fmt(Math.abs(G.acero.ahorro), 0)} kg (${fmt(100 * Math.abs(G.acero.ahorro) / G.acero.uniforme, 0)} %)</b>`
     : ''
   return `<h4 class="mem" style="margin-top:14px">Análisis longitudinal — bastones donde hacen falta</h4>
-    <p class="mem-p">Se revisaron los <b>${G.n} miembros</b> de este tipo de trabe con la envolvente por estaciones del modelo${t.perfil.combo ? ` (${esc(t.perfil.combo)})` : ''}.
+    <p class="mem-p">Se revisaron <b>${G.n} ${G.results.some((r) => r.isElement) ? 'elementos</b> (miembros de RAM unidos en su longitud real)' : 'miembros</b>'} de este tipo de trabe con la envolvente por estaciones del modelo${t.perfil.combo ? ` (${esc(t.perfil.combo)})` : ''}.
     Con el armado corrido (MR+ = ${fmt(G.caps.MRP, 2)} t·m, MR− = ${fmt(G.caps.MRN, 2)} t·m) <b>${G.nOk}</b> miembro(s) quedan cubiertos y <b>${G.nBast}</b> requieren bastón sólo donde el momento rebasa esa resistencia${G.nInsuf ? `; <b style="color:#b91c1c">${G.nInsuf} insuficientes</b>` : ''}${G.nShear ? `; <b style="color:#b91c1c">${G.nShear} no cumplen por cortante</b>` : ''}.
     Los bastones se prolongan ≥ máx(d, 12db) = ${fmt(G.caps.inf.ext, 0)} cm más allá del punto teórico de corte y desarrollan Ld = ${fmt(G.caps.inf.Ld.Ld, 0)}/${fmt(G.caps.sup.Ld.Ld, 0)} cm desde el punto de momento máximo (NTC-2017 §5.1 y §6.1.2); los que llegan a un apoyo se anclan en él.
     Acero: <b>${fmt(G.acero.total, 0)} kg</b> (${fmt(G.acero.base, 0)} corridas + ${fmt(G.acero.bastones, 0)} bastones)${ahorro}.${!G.caps.okBase ? ' <b style="color:#b91c1c">El armado corrido no cumple por sí solo los mínimos (As mín / b mín).</b>' : ''}</p>

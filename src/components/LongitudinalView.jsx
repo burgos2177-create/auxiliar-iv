@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import useBeamStore from '../store/useBeamStore'
-import { parseRamStations, looksLikeStations, analyzeGroup, optimizeBase, applyBase, barWeight } from '../core/longitudinal'
+import { parseRamStations, looksLikeStations, analyzeGroup, optimizeBase, applyBase, unitLabel } from '../core/longitudinal'
+import { parseNodeXlsx, parseNodeText, parseMemberGeometry, memberLengths, chainMembers, sectionMismatches } from '../core/geometry'
 import { elevationSvg, diagramSvg } from '../core/longitudinalSvg'
 import { parseRamEnvelope } from '../core/ramParser'
 
@@ -22,6 +23,7 @@ function Pill({ tone, children }) {
 const statusPill = (r) => r.status === 'insuficiente' ? <Pill tone="bad">✗ insuficiente</Pill>
   : r.shearFail ? <Pill tone="bad">✗ cortante</Pill>
     : r.status === 'baston' ? <Pill tone="info">bastón</Pill> : <Pill tone="ok">✓ corridas</Pill>
+const smaxWarn = (r) => (r.shear.extremos.okSmax === false || r.shear.centro.okSmax === false)
 
 const barsTxt = (bars, cal) => bars.length ? bars.map((b) => `${b.k}#${cal} L=${fmt(b.len)} @${fmt(b.x0)}${b.ancla ? ` ⟂${b.ancla}` : ''}`).join(' · ') : '—'
 
@@ -40,6 +42,7 @@ export default function LongitudinalView() {
   const hasSel = selectedIdx >= 0 && selectedIdx < sections.length
 
   const fileRef = useRef(null)
+  const geomRef = useRef(null)
   const [msg, setMsg] = useState('')
   const [sel, setSel] = useState(null)      // miembro seleccionado (id)
   const [view, setView] = useState('tabla') // tabla | patrones
@@ -63,6 +66,13 @@ export default function LongitudinalView() {
     if (!group) return null
     return group.results.find((r) => r.id === sel) || group.results.find((r) => r.status !== 'ok') || group.results[0]
   }, [group, sel])
+
+  const mismatch = useMemo(() => {
+    if (!perfil?.secPor) return null
+    const ids = perfil.members.map((m) => m.id)
+    return sectionMismatches(perfil.secPor, ids, form)
+  }, [perfil, form.ancho, form.peralte]) // eslint-disable-line
+  const excluidos = useMemo(() => new Set((perfil?.excluir || []).map(String)), [perfil?.excluir])
 
   function onFile(e) {
     const file = e.target.files?.[0]; if (!file) return
@@ -94,6 +104,60 @@ export default function LongitudinalView() {
   }
 
   const patchPerfil = (p) => setPerfil({ ...perfil, ...p })
+
+  // Geometría: reporte de miembros (NJ, NK, sección) + coordenadas de nudos → L por miembro y elementos
+  async function onGeomFiles(e) {
+    const files = [...(e.target.files || [])]
+    e.target.value = ''
+    if (!files.length || !perfil?.members?.length) return
+    let geomRows = perfil.geom?.rows || null
+    let nodes = null
+    const notas = []
+    for (const f of files) {
+      try {
+        if (/\.xlsx$/i.test(f.name)) {
+          nodes = await parseNodeXlsx(await f.arrayBuffer())
+          notas.push(`${f.name}: ${nodes.size} nudos`)
+        } else {
+          const text = await f.text()
+          const g = parseMemberGeometry(text)
+          if (g.rows.length) { geomRows = g.rows; notas.push(`${f.name}: ${g.rows.length} miembros con NJ/NK`) }
+          else {
+            const n = parseNodeText(text)
+            if (n.size) { nodes = n; notas.push(`${f.name}: ${n.size} nudos`) }
+            else notas.push(`${f.name}: no se reconoció (ni miembros ni nudos)`)
+          }
+        }
+      } catch (err) { notas.push(`${f.name}: ${err.message}`) }
+    }
+    if (nodes) {
+      // sólo se guardan los nudos que usan estos miembros (el proyecto queda ligero)
+      const usados = new Map()
+      for (const r of geomRows || []) for (const n of [r.nj, r.nk]) if (nodes.has(n)) usados.set(n, nodes.get(n))
+      nodes = usados.size ? usados : nodes
+    }
+    const nodesMap = nodes || new Map(Object.entries(perfil.geom?.nodes || {}))
+    if (!geomRows || !nodesMap.size) {
+      setMsg(`${notas.join(' · ')} — faltan ${!geomRows ? 'el reporte de miembros (NJ/NK)' : 'las coordenadas de nudos'}; carga ambos archivos (puedes seleccionarlos juntos).`)
+      patchPerfil({ geom: { ...(perfil.geom || {}), rows: geomRows || perfil.geom?.rows || null, nodes: nodes ? Object.fromEntries(nodes) : (perfil.geom?.nodes || null) } })
+      return
+    }
+    const ids = perfil.members.map((m) => m.id)
+    const { Lpor, secPor, missing } = memberLengths(geomRows.filter((r) => ids.includes(String(r.member))), nodesMap)
+    const chains = chainMembers(geomRows, nodesMap, ids)
+    const nEl = chains.length, nMulti = chains.filter((c) => c.members.length > 1).length
+    patchPerfil({
+      Lpor: { ...(perfil.Lpor || {}), ...Lpor }, secPor,
+      geom: { rows: geomRows, nodes: Object.fromEntries(nodesMap), chains, archivo: files.map((f) => f.name).join(' + ') },
+      porElemento: perfil.porElemento ?? true,
+    })
+    setMsg(`${notas.join(' · ')} → ${Object.keys(Lpor).length} longitudes calculadas${missing.length ? ` (${missing.length} sin nudos)` : ''} · ${nEl} elementos (${nMulti} formados por varios miembros colineales)`)
+  }
+  const toggleExcluir = (id) => {
+    const ex = new Set((perfil.excluir || []).map(String))
+    ex.has(String(id)) ? ex.delete(String(id)) : ex.add(String(id))
+    patchPerfil({ excluir: [...ex] })
+  }
   const commitL = () => { const v = parseFloat(Ltxt); if (v > 0) patchPerfil({ L: v }) }
   const setLpor = (id, v) => {
     const Lpor = { ...(perfil.Lpor || {}) }
@@ -101,9 +165,6 @@ export default function LongitudinalView() {
     if (n > 0) Lpor[id] = n; else delete Lpor[id]
     patchPerfil({ Lpor })
   }
-
-  const kgCal = (calNum) => barWeight((({ 2: 0.32, 2.5: 0.49, 3: 0.71, 4: 1.27, 5: 1.98, 6: 2.85, 8: 5.07 })[calNum] || 0))
-  void kgCal
 
   if (!hasSel) {
     return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-tx3)' }}>Selecciona una trabe (o crea una con “+ Nueva”) para analizarla a lo largo</div>
@@ -118,6 +179,7 @@ export default function LongitudinalView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <input ref={fileRef} data-testid="perfil-file" type="file" accept=".txt,.csv,text/plain" style={{ display: 'none' }} onChange={onFile} />
+      <input ref={geomRef} data-testid="geom-files" type="file" multiple accept=".txt,.csv,.xlsx,text/plain" style={{ display: 'none' }} onChange={onGeomFiles} />
 
       {/* Barra superior */}
       <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-panel)', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -132,6 +194,16 @@ export default function LongitudinalView() {
           {perfil?.members?.length > 0 && (
             <>
               <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--color-tx2)' }}><b>{perfil.archivo}</b> · {perfil.members.length} miembros{perfil.combo ? ` · ${perfil.combo}` : ''}</span>
+              <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => geomRef.current?.click()}
+                title="Reporte Datos de geometría → Miembros (.txt) + coordenadas de nudos (.xlsx o .txt). Calcula la L de cada miembro y une los tramos colineales en elementos completos">
+                📐 Geometría (miembros .txt + nudos .xlsx)
+              </button>
+              {perfil.geom?.chains?.length > 0 && (
+                <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }} title="Une los miembros colineales de RAM que comparten nudo en un solo elemento y lo analiza completo">
+                  <input type="checkbox" checked={perfil.porElemento !== false} onChange={(e) => patchPerfil({ porElemento: e.target.checked })} />
+                  por elemento ({perfil.geom.chains.length})
+                </label>
+              )}
               <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                 L del grupo (m)
                 <input className="field-input" data-testid="perfil-L" style={{ width: 70, fontSize: 11 }} value={Ltxt} onChange={(e) => setLtxt(e.target.value)} onBlur={commitL} onKeyDown={(e) => e.key === 'Enter' && commitL()} placeholder="4.00" />
@@ -159,6 +231,20 @@ export default function LongitudinalView() {
         {group && (
           <>
             {needL && <div style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px' }}>Captura la longitud L del grupo (o por miembro en la tabla) para convertir las estaciones a metros y calcular longitudes de bastón.</div>}
+            {mismatch?.distintos?.length > 0 && (
+              <div style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span>
+                  {mismatch.distintos.filter((d) => !excluidos.has(String(d.member))).length} miembro(s) del reporte tienen otra sección que esta trabe ({form.ancho}×{form.peralte}):
+                  {' '}{Object.entries(mismatch.resumen).map(([k, n]) => `${k} ×${n}`).join(' · ')}.
+                </span>
+                {mismatch.distintos.some((d) => !excluidos.has(String(d.member))) && (
+                  <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => patchPerfil({ excluir: [...new Set([...(perfil.excluir || []), ...mismatch.distintos.map((d) => d.member)])] })}>
+                    Excluir del grupo los de otra sección ({mismatch.distintos.map((d) => `M-${d.member}`).join(', ')})
+                  </button>
+                )}
+                {excluidos.size > 0 && <span style={{ color: 'var(--color-tx3)' }}>excluidos: {[...excluidos].join(', ')} <button style={{ fontSize: 10, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', color: 'var(--color-tx3)' }} onClick={() => patchPerfil({ excluir: [] })}>restaurar</button></span>}
+              </div>
+            )}
             {!capsOk && <div style={{ fontSize: 11, color: '#c62828', background: '#fdecea', border: '1px solid #ef9a9a', borderRadius: 6, padding: '6px 10px' }}>
               El armado corrido no cumple por sí solo (As mín, As máx o b mín): MR+ {fmt(group.caps.MRP)} · MR− {fmt(group.caps.MRN)} t·m. Sube el armado corrido antes de repartir bastones.
             </div>}
@@ -167,11 +253,12 @@ export default function LongitudinalView() {
               background: group.allOk && capsOk ? '#e8f5e9' : group.nInsuf || group.nShear || !capsOk ? '#fdecea' : '#fffbeb',
               border: `1px solid ${group.allOk && capsOk ? '#a5d6a7' : group.nInsuf || group.nShear || !capsOk ? '#ef9a9a' : '#fcd34d'}`,
             }}>
-              <b>{group.n} miembros:</b>
+              <b>{group.n} {group.results.some((r) => r.isElement) ? 'elementos' : 'miembros'}:</b>
               <span style={{ color: '#15803d' }}>{group.nOk} pasan con corridas</span>
               <span style={{ color: '#1d4ed8' }}>{group.nBast} con bastón</span>
               {group.nInsuf > 0 && <span style={{ color: '#c62828' }}>{group.nInsuf} insuficientes</span>}
               {group.nShear > 0 && <span style={{ color: '#c62828' }}>{group.nShear} fallan por cortante</span>}
+              {group.results.some(smaxWarn) && <span style={{ color: '#92400e' }} title="La separación de estribos supera d/2 (o d/4 con cortante alto) en alguna zona; la NTC la limita cuando se requieren estribos">⚠ {group.results.filter(smaxWarn).length} con s &gt; s máx</span>}
               <span style={{ color: 'var(--color-tx3)' }}>MR+ {fmt(group.caps.MRP)} · MR− {fmt(group.caps.MRN)} t·m</span>
               <span style={{ marginLeft: 'auto' }}>
                 acero: <b>{fmt(group.acero.total, 0)} kg</b> ({fmt(group.acero.base, 0)} corridas + {fmt(group.acero.bastones, 0)} bastones)
@@ -228,15 +315,20 @@ export default function LongitudinalView() {
             {view === 'tabla' ? (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)' }}>
                 <thead><tr>
-                  <th style={TH}>Miembro</th><th style={TH}>L (m)</th><th style={TH}>Mu+</th><th style={TH}>Mu−</th><th style={TH}>Vu</th>
+                  <th style={TH}>{group.results.some((r) => r.isElement) ? 'Elemento' : 'Miembro'}</th><th style={TH}>L (m)</th><th style={TH}>Mu+</th><th style={TH}>Mu−</th><th style={TH}>Vu</th>
                   <th style={TH}>Bastón inf.</th><th style={TH}>Bastón sup.</th><th style={TH}>Estado</th>
                 </tr></thead>
                 <tbody>
                   {group.results.map((r) => (
                     <tr key={r.id} onClick={() => setSel(r.id)} style={{ cursor: 'pointer', background: selected?.id === r.id ? 'rgba(91,197,174,0.12)' : r.status === 'insuficiente' || r.shearFail ? 'rgba(198,40,40,0.05)' : undefined }}>
-                      <td style={{ ...TD, fontWeight: 700 }}>M-{r.id}</td>
+                      <td style={{ ...TD, fontWeight: 700, whiteSpace: 'normal' }}>
+                        {unitLabel(r)}
+                        {r.isElement && <div style={{ fontSize: 9, color: 'var(--color-tx3)', fontWeight: 400 }}>{r.members.length} tramos: {r.members.map((m) => m.id).join(' · ')}{r.supports?.length > 2 ? ` · ${r.supports.length - 2} apoyo(s) int.` : ''}</div>}
+                        {!r.isElement && perfil.secPor?.[r.id] && <div style={{ fontSize: 9, color: 'var(--color-tx3)', fontWeight: 400 }}>{perfil.secPor[r.id]}</div>}
+                        {!r.isElement && <button onClick={(e) => { e.stopPropagation(); toggleExcluir(r.id) }} style={{ fontSize: 9, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-tx3)', textDecoration: 'underline', padding: 0 }}>excluir</button>}
+                      </td>
                       <td style={TD}>
-                        {perfil.members.find((m) => m.id === r.id)?.Lreport
+                        {perfil.members.find((m) => m.id === r.id)?.Lreport || r.isElement || perfil.Lpor?.[r.id]
                           ? fmt(r.L)
                           : <input className="field-input" style={{ width: 56, fontSize: 10.5, padding: '1px 4px' }} placeholder={fmt(L)} value={perfil.Lpor?.[r.id] ?? ''} onChange={(e) => setLpor(r.id, e.target.value)} onClick={(e) => e.stopPropagation()} />}
                       </td>
@@ -246,6 +338,12 @@ export default function LongitudinalView() {
                       <td style={{ ...TD, color: '#2563a8', whiteSpace: 'normal' }}>{barsTxt(r.inf.bars, form.calBastonInf)}</td>
                       <td style={{ ...TD, color: '#c94f2a', whiteSpace: 'normal' }}>{barsTxt(r.sup.bars, form.calBastonSup)}</td>
                       <td style={TD}>{statusPill(r)}</td>
+                    </tr>
+                  ))}
+                  {[...excluidos].map((id) => (
+                    <tr key={'ex' + id} style={{ opacity: 0.55 }}>
+                      <td style={{ ...TD, fontWeight: 700 }}>M-{id} <button onClick={() => toggleExcluir(id)} style={{ fontSize: 9, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-tx3)', textDecoration: 'underline', padding: 0 }}>incluir</button></td>
+                      <td style={TD} colSpan={7}><Pill tone="muted">excluido del grupo{perfil.secPor?.[id] ? ` · ${perfil.secPor[id]}` : ''}</Pill></td>
                     </tr>
                   ))}
                 </tbody>
@@ -263,7 +361,7 @@ export default function LongitudinalView() {
                       <div style={{ color: '#2563a8' }}>inf: {barsTxt(p.sample.inf.bars, form.calBastonInf)}</div>
                       <div style={{ color: '#c94f2a' }}>sup: {barsTxt(p.sample.sup.bars, form.calBastonSup)}</div>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--color-tx3)', marginTop: 4, fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>M-{p.members.join(', M-')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--color-tx3)', marginTop: 4, fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>{p.members.map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', ')}</div>
                   </div>
                 ))}
               </div>
@@ -275,7 +373,8 @@ export default function LongitudinalView() {
             {selected && (
               <>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 11.5, fontFamily: 'var(--font-mono)' }}>
-                  <b>M-{selected.id}</b> {statusPill(selected)}
+                  <b>{unitLabel(selected)}</b> {statusPill(selected)}
+                  {smaxWarn(selected) && <Pill tone="warn">⚠ s máx {fmt(selected.shear.extremos.sMax, 1)} cm (NTC d/2 ó d/4)</Pill>}
                   <span>Mu+ {fmt(selected.profile.muPmax)} / MR+ {fmt(group.caps.MRP)}</span>
                   <span>Mu− {fmt(selected.profile.muNmax)} / MR− {fmt(group.caps.MRN)}</span>
                   <span>Vu {fmt(selected.profile.vuMax)} / Vr L4 {fmt(selected.shear.extremos.Vr)} · centro {fmt(selected.shear.centro.Vr)}</span>
@@ -298,9 +397,9 @@ export default function LongitudinalView() {
                 )}
                 <div dangerouslySetInnerHTML={{ __html: diagramSvg(selected, group.caps, { width: 760 }) }} />
                 <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 8, padding: 6 }}
-                  dangerouslySetInnerHTML={{ __html: elevationSvg(form, selected, { scale: 4.2, title: `${form.nombre} · M-${selected.id}${view === 'patrones' ? ` · patrón ${group.patterns.find((p) => p.signature === selected.signature)?.label || ''}` : ''}` }).svg.replace('<svg ', '<svg style="max-width:100%;height:auto" ') }} />
+                  dangerouslySetInnerHTML={{ __html: elevationSvg(form, selected, { scale: selected.L > 7 ? 3.2 : 4.2, title: `${form.nombre} · ${unitLabel(selected)}${view === 'patrones' ? ` · patrón ${group.patterns.find((p) => p.signature === selected.signature)?.label || ''}` : ''}` }).svg.replace('<svg ', '<svg style="max-width:100%;height:auto" ') }} />
                 <div style={{ fontSize: 10, color: 'var(--color-tx3)' }}>
-                  Bastón: desde el punto donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; longitudes a múltiplos de 5 cm, medidas desde el apoyo I. Los que llegan a un apoyo se anclan en él (gancho). Cortante por zonas: extremos L/4 con @{form.sepLcuarto}, centro con @{form.sepRest}. El alzado va al DXF a escala real junto con las secciones.
+                  Bastón: desde el punto donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; longitudes a múltiplos de 5 cm, medidas desde el apoyo I. Los que llegan a un extremo se anclan en él (gancho). Cortante por claros: cuartos extremos con @{form.sepLcuarto}, centro con @{form.sepRest}; los apoyos interiores (triángulos) se detectan donde el cortante salta y cambia de signo. El alzado va al DXF a escala real junto con las secciones.
                 </div>
               </>
             )}

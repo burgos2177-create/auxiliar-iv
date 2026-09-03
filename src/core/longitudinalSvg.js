@@ -94,14 +94,33 @@ export function elevationSvg(t, r, opts = {}) {
   drawBars(r.sup.bars, C.top, ySup, 1, t.calBastonSup || t.calSup)
   drawBars(r.inf.bars, C.bot, yInf, -1, t.calBastonInf || t.calInf)
 
-  // Estribos por zonas: L/4 @ sepLcuarto, centro @ sepRest (dibujo esquemático, separación real)
-  const q = r.L / 4
-  const zones = [[0, q, t.sepLcuarto], [q, r.L - q, t.sepRest], [r.L - q, r.L, t.sepLcuarto]]
+  // Estribos por zonas en cada claro: L/4 @ sepLcuarto, centro @ sepRest (separación real)
+  const sups = (r.supports && r.supports.length >= 2) ? r.supports : [0, r.L]
+  const zones = []
+  for (let i = 0; i < sups.length - 1; i++) {
+    const a = sups[i], b = sups[i + 1], qs = (b - a) / 4
+    if (b - a <= 0) continue
+    zones.push([a, a + qs, t.sepLcuarto], [a + qs, b - qs, t.sepRest], [b - qs, b, t.sepLcuarto])
+  }
+  // apoyos interiores (columnas / trabes principales detectadas por el salto de cortante)
+  for (const xs of sups.slice(1, -1)) {
+    const xp = X(xs)
+    P(`<polygon points="${(xp - 9).toFixed(1)},${(oy + hpx + 22).toFixed(1)} ${(xp + 9).toFixed(1)},${(oy + hpx + 22).toFixed(1)} ${xp.toFixed(1)},${(oy + hpx + 4).toFixed(1)}" fill="none" stroke="${C.concrete}" stroke-width="1.4"/>`)
+    P(`<line x1="${xp.toFixed(1)}" y1="${oy.toFixed(1)}" x2="${xp.toFixed(1)}" y2="${(oy + hpx).toFixed(1)}" stroke="${C.concrete}" stroke-width="1" stroke-dasharray="4,3"/>`)
+  }
+  // nudos entre miembros (elemento formado por varios miembros de RAM)
+  if (r.members && r.members.length > 1) {
+    for (const m of r.members) {
+      const xp = X(m.x0)
+      P(`<text x="${(xp + 3).toFixed(1)}" y="${(oy + hpx / 2 + 4).toFixed(1)}" font-size="${fs - 2}" fill="${C.muted}">M-${esc(m.id)}</text>`)
+      if (m.x0 > 0) P(`<line x1="${xp.toFixed(1)}" y1="${(oy + hpx * 0.35).toFixed(1)}" x2="${xp.toFixed(1)}" y2="${(oy + hpx * 0.65).toFixed(1)}" stroke="${C.muted}" stroke-width="0.8" stroke-dasharray="2,2"/>`)
+    }
+  }
   const eiPx = (rc - dSup / 2) * scale
   for (const [za, zb, s] of zones) {
     const sM = (+s || 0) / 100
     if (!(sM > 0)) continue
-    let x = za + (za === 0 ? 0.05 : 0)
+    let x = za + 0.05
     const step = sM
     let n = 0
     while (x <= zb - 0.02 && n < 400) {
@@ -132,7 +151,7 @@ export function elevationSvg(t, r, opts = {}) {
   P(`<text x="${(ox + Lpx + SUP / 2).toFixed(1)}" y="${(oy + hpx + 60).toFixed(1)}" font-size="${fs - 1}" fill="${C.muted}" text-anchor="middle">apoyo J</text>`)
 
   // Título
-  const title = opts.title || `${t.nombre || 'TRABE'} · M-${r.id}`
+  const title = opts.title || `${t.nombre || 'TRABE'} · ${r.isElement ? 'E ' : 'M-'}${r.id}`
   P(`<text x="${(ox + Lpx / 2).toFixed(1)}" y="${ly + fs + 12}" font-size="${fs + 4}" font-weight="700" fill="${C.ink}" text-anchor="middle">${esc(title)}</text>`)
   if (opts.subtitle) P(`<text x="${(ox + Lpx / 2).toFixed(1)}" y="${ly + 2 * fs + 16}" font-size="${fs - 1}" fill="${C.muted}" text-anchor="middle">${esc(opts.subtitle)}</text>`)
 
@@ -151,7 +170,8 @@ export function elevationsGridSvg(t, group, scale = 14) {
   for (const p of group.patterns) {
     const ids = p.members
     const title = `${t.nombre || 'TRABE'} · patrón ${p.label} (${ids.length} miembro${ids.length !== 1 ? 's' : ''})`
-    const subtitle = ids.length <= 12 ? `M-${ids.join(', M-')}` : `M-${ids.slice(0, 12).join(', M-')} … (+${ids.length - 12})`
+    const pre = p.sample.isElement ? 'E ' : 'M-'
+    const subtitle = ids.length <= 12 ? ids.map((i) => pre + i).join(', ') : `${ids.slice(0, 12).map((i) => pre + i).join(', ')} … (+${ids.length - 12})`
     const e = elevationSvg(t, p.sample, { scale, title, subtitle })
     parts.push(`<g transform="translate(0,${y.toFixed(1)})">${e.inner}</g>`)
     y += e.H + 20
@@ -182,7 +202,7 @@ export function diagramSvg(r, caps, opts = {}) {
   const y0 = PAD.t + HM / 2
   const ym = (m) => y0 + (m / maxM) * (HM / 2) // positivo hacia abajo
   P(`<rect x="0" y="0" width="${W}" height="${HM + HV + PAD.t + PAD.b + 30}" fill="#fff"/>`)
-  P(`<text x="${PAD.l}" y="${PAD.t - 10}" font-size="11" font-weight="700" fill="${C.ink}">Momento (t·m) · M-${esc(r.id)} · L = ${f2(L)} m</text>`)
+  P(`<text x="${PAD.l}" y="${PAD.t - 10}" font-size="11" font-weight="700" fill="${C.ink}">Momento (t·m) · ${r.isElement ? 'E ' : 'M-'}${esc(r.id)} · L = ${f2(L)} m${r.supports && r.supports.length > 2 ? ` · ${r.supports.length - 2} apoyo(s) interior(es)` : ''}</text>`)
   // zonas de bastón sombreadas
   for (const b of r.inf.bars) P(`<rect x="${xs(b.x0).toFixed(1)}" y="${y0.toFixed(1)}" width="${(xs(b.x1) - xs(b.x0)).toFixed(1)}" height="${(HM / 2).toFixed(1)}" fill="${C.bot}" opacity="0.08"/>`)
   for (const b of r.sup.bars) P(`<rect x="${xs(b.x0).toFixed(1)}" y="${PAD.t}" width="${(xs(b.x1) - xs(b.x0)).toFixed(1)}" height="${(HM / 2).toFixed(1)}" fill="${C.top}" opacity="0.08"/>`)

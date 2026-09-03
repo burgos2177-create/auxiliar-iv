@@ -1,0 +1,148 @@
+﻿                                                                      
+
+Fecha Actual: 03/09/2026 03:01 p. m.                                                      
+Sistema de unidades: Métrico                                                              
+Nombre del archivo: C:\Users\Dell\Documents\Sogrub\OneDrive\IV 
+INGENIERÍAS\PROYECTOS\DISEÑOS\RS-OCASO\PROCESO\Modelo Nervada 3.0.retx
+
+                                    Datos de Geometría
+
+Miembros
+
+Miembro NJ    NK     Descripción       Sección         Material       d0     dL Factor Ig
+          
+                                                                    [cm]   [cm]         
+----------------------------------------------------------------------
+1112    11     7     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1        1    22     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+2        3     2     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+9       16    17     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+12      19    20     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+13      21    22     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+15      25    28     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+16      27    29     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+17      29    30     T3-v2             15 X 25         f'c 250      0.00   0.00    0.00 
+124    363   365     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+125    365   367     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+139    218   219     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+140    337   220     T3-v2             15 X 25         f'c 250      0.00   0.00    0.00 
+141    220   221     T3-v2             15 X 25         f'c 250      0.00   0.00    0.00 
+144    324   325     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+148    226   314     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+151    230   235     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+152    232   231     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+153    234   235     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+154    360   239     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+155    368   370     T3-v2             15 x 30         f'c 250      0.00   0.00    0.00 
+212    317   315     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+222    289   340     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+228    303   369     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+271     22     9     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+272      9     2     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+273      2   121     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+289    123    11     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+305     28   257     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+306     29    28     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+415     69    43     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+967    237   367     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+996    353   228     T3-v2             15 X 25         f'c 250      0.00   0.00    0.00 
+997    228   337     T3-v2             15 X 25         f'c 250      0.00   0.00    0.00 
+999    339   216     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1013   325   327     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1014   327   223     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1025   314   225     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1026   225   220     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1028   250   320     T3-v2             15 X 25         f'c 250      0.00   0.00    0.00 
+1029   235   231     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1030   231   357     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1031   357   258     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1032   239   237     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1036   315   281     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1037   281   280     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1056   340   657     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1057   338   295     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1058   364   362     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1059   362   307     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1060   307   297     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1062   369   362     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1063   362   286     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1064   286   356     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1066   354   338     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1074   657   338     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1078   659   657     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1082   314   309     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1099   667   324     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1100   237   668     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1104   324   322     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1105   322   320     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1106   320   227     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1107   227   318     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1108   318   226     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1109   226   184     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1110    19   664     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1111   664    11     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1113     7     1     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1114     1     5     T3-v2             15 x 20         f'c 250      0.00   0.00    0.00 
+1139   670   749     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1140   749   748     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1141   748   747     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1142   747   746     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1143   746   745     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1144   745   744     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1145   744   743     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1146   743   742     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1147   742   741     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1148   741   680     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1149   680   740     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1150   740   728     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1151   728   739     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1152   739   738     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1153   738   737     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1154   737   736     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1155   736   735     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1156   735   734     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1157   734   733     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1158   733   732     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1159   732   731     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1160   731   730     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1161   730   729     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1171   779   778     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1172   778   777     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1173   777   780     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1174   780   779     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+1175   782   784     T3-v2             RcBeam 15X20    f'c 250      0.00   0.00    0.00 
+----------------------------------------------------------------------
+
+
+Nomenclatura
+
+Cb22, Cb33  : Coeficientes de gradiente de momento
+Cm22, Cm33  : Coeficientes de momento uniforme equivalente para las ecuaciones de 
+interacción
+d0          : Altura de la sección de inercia variable en el extremo J del miembro
+DJX         : Distancia de cacho rígido a partir del nudo J en la dirección X
+DJY         : Distancia de cacho rígido a partir del nudo J en la dirección Y
+DJZ         : Distancia de cacho rígido a partir del nudo J en la dirección Z
+DKX         : Distancia de cacho rígido a partir del nudo K en la dirección X
+DKY         : Distancia de cacho rígido a partir del nudo K en la dirección Y
+DKZ         : Distancia de cacho rígido a partir del nudo K en la dirección Z
+dL          : Altura de la sección de inercia variable en el extremo K del miembro
+Factor Ig   : Factor de reducción de la  inercia (Inercia efectiva/Inercia bruta) para 
+miembros de hormigón armado
+K22         : Factor de longitud efectiva alrededor del eje 22
+K33         : Factor de longitud efectiva alrededor del eje 33
+L22         : Longitud del miembro para el cálculo de la capacidad axial
+L33         : Longitud del miembro para el cálculo de la capacidad axial
+LB pos      : Longitud sin arriostramiento del ala en compresión de la sección en el lado 
+positivo del eje local 2
+LB neg      : Longitud sin arriostramiento del ala en compresión de la sección en el lado 
+negativo del eje local 2
+RX          : Rotación en X
+RY          : Rotación en Y
+RZ          : Rotación en Z
+TO          : 1 = Miembro de solo tracción     0 = Miembro normal
+TX          : Traslación en X
+TY          : Traslación en Y
+TZ          : Traslación en Z
+
+

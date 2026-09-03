@@ -8,7 +8,7 @@ import { CAL_TO_NUM } from './constants'
 import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { evaluateBeamEnvelope } from './ramParser'
 import { columnDemand, demandCase } from './columnDemand'
-import { analyzeGroup } from './longitudinal'
+import { analyzeGroup, unitLabel } from './longitudinal'
 import { elevationSvg } from './longitudinalSvg'
 import { interactionSvgString } from './columnsSvg'
 
@@ -498,10 +498,10 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
           : r.shearFail ? '<span style="color:#dc2626;font-weight:700">✗ cortante</span>'
             : r.status === 'baston' ? '<span style="color:#1d4ed8;font-weight:700">bastón</span>' : '<span style="color:#15803d;font-weight:700">✓ corridas</span>'
         const filas = G.results.map((r) => `<tr>
-          <td>M-${esc0(r.id)}</td><td>${fmt(r.L, 2)}</td><td>${fmt(r.profile.muPmax, 2)}</td><td>${fmt(r.profile.muNmax, 2)}</td><td>${fmt(r.profile.vuMax, 2)}</td>
+          <td>${esc0(unitLabel(r))}${r.isElement ? `<div style="font-size:9px;color:#6b7280">${r.members.length} miembros de RAM</div>` : ''}</td><td>${fmt(r.L, 2)}</td><td>${fmt(r.profile.muPmax, 2)}</td><td>${fmt(r.profile.muNmax, 2)}</td><td>${fmt(r.profile.vuMax, 2)}</td>
           <td style="color:#2563a8">${esc0(bars(r.inf.bars, t.calBastonInf))}</td><td style="color:#c94f2a">${esc0(bars(r.sup.bars, t.calBastonSup))}</td><td>${est(r)}</td></tr>`).join('')
         const patrones = G.patterns.map((p) => {
-          const e = elevationSvg(t, p.sample, { scale: 3.2, title: `${t.nombre} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`, subtitle: `M-${p.members.slice(0, 20).join(', M-')}${p.members.length > 20 ? ` … (+${p.members.length - 20})` : ''}` })
+          const e = elevationSvg(t, p.sample, { scale: 3.2, title: `${t.nombre} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`, subtitle: `${p.members.slice(0, 20).map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', ')}${p.members.length > 20 ? ` … (+${p.members.length - 20})` : ''}` })
           return `<div style="margin:10px 0;overflow-x:auto">${e.svg.replace('<svg ', '<svg style="max-width:100%;height:auto" ')}</div>`
         }).join('')
         const ahorro = G.acero.ahorro != null
@@ -518,7 +518,7 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
             Acero: <b>${fmt(G.acero.total, 0)} kg</b> (${fmt(G.acero.base, 0)} corridas + ${fmt(G.acero.bastones, 0)} bastones). ${ahorro}
             ${!G.caps.okBase ? '<br><b style="color:#dc2626">El armado corrido no cumple por sí solo (As mín / As máx / b mín).</b>' : ''}
           </div>
-          <table class="summary"><tr><th>Miembro</th><th>L (m)</th><th>Mu+</th><th>Mu−</th><th>Vu</th><th>Bastón inf.</th><th>Bastón sup.</th><th>Estado</th></tr>${filas}</table>
+          <table class="summary"><tr><th>Elemento / miembro</th><th>L (m)</th><th>Mu+</th><th>Mu−</th><th>Vu</th><th>Bastón inf.</th><th>Bastón sup.</th><th>Estado</th></tr>${filas}</table>
           <div style="font-size:10px;color:#6b7280;margin-top:4px">Bastón: desde donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; posición medida desde el apoyo I; ⟂ = se ancla en ese apoyo.</div>
           <div style="font-size:14px;font-weight:800;margin:16px 0 6px;color:#0f172a">Patrones de armado (${G.patterns.length})</div>
           ${patrones}`

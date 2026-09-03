@@ -25,6 +25,8 @@ const NUM = /(-?\d+(?:[.,]\d+)?)\s+([A-Za-z0-9+*_.-]+)/g
 const KG_PER_M_PER_CM2 = 0.785 // acero 7850 kg/m³ → 0.785 kg por metro por cm²
 
 export const fmt2 = (v, d = 2) => (v === null || v === undefined || !isFinite(v) ? '—' : Number(v).toFixed(d))
+/** Etiqueta de una unidad de análisis: miembro de RAM o elemento (cadena de miembros) */
+export const unitLabel = (r) => (r?.isElement ? `E ${r.id}` : `M-${r?.id}`)
 
 // ── 1. Parser del reporte por estaciones ─────────────────────
 /**
@@ -122,6 +124,60 @@ export function parseRamStations(text) {
 /** ¿El texto es un reporte por estaciones (y no el de máximos por miembro)? */
 export function looksLikeStations(text) {
   return /^\s*\d+(?:[.,]\d+)?%?\s+Max\b/m.test(String(text || '')) && /Estaci[oó]n/i.test(String(text || ''))
+}
+
+// ── 1b. Elementos físicos: cadenas de miembros colineales ─────
+/**
+ * Une las estaciones de los miembros de una cadena en un solo "miembro"
+ * largo (elemento). Los miembros invertidos se recorren de J a I; el
+ * signo de M33 se conserva (RAM lo reporta con el mismo sentido físico,
+ * positivo = tensión abajo, en ambas orientaciones) y V2 se usa en valor
+ * absoluto. En cada nudo interior quedan dos estaciones con la misma x
+ * (fin de un miembro / inicio del siguiente): el perfil admite ese salto.
+ * @param chain   cadena de chainMembers
+ * @param byId    Map id → miembro del parser (con stations)
+ * @returns miembro compuesto { id, stations, Lreport, members:[…], nodes, isElement:true }
+ */
+export function buildElement(chain, byId) {
+  const stations = []
+  for (const m of chain.members) {
+    const src = byId.get(String(m.id))
+    if (!src) continue
+    const sts = m.reversed ? [...src.stations].reverse() : src.stations
+    for (const s of sts) {
+      const pos = m.reversed ? 1 - s.pos : s.pos
+      stations.push({
+        raw: m.x0 + pos * m.L, isPct: false, pos: 0,
+        axial: { ...s.axial }, v2: { ...s.v2 }, v3: { ...s.v3 }, tors: { ...s.tors }, m22: { ...s.m22 }, m33: { ...s.m33 },
+        member: m.id,
+      })
+    }
+  }
+  const L = chain.L
+  for (const s of stations) s.pos = L > 0 ? s.raw / L : 0
+  return { id: chain.id, stations, Lreport: L, members: chain.members, nodes: chain.nodes, isElement: true }
+}
+
+/**
+ * Apoyos interiores de un elemento: nudos donde el cortante salta y cambia
+ * de signo (reacción) — heurística para partir en claros las zonas de
+ * estribos. Los extremos siempre son apoyos.
+ * @returns [x en m]
+ */
+export function detectSupports(element, { minJump = 0.15 } = {}) {
+  const L = element.Lreport || 0
+  const sup = [0]
+  const st = element.stations
+  const vmax = Math.max(0.01, ...st.map((s) => Math.max(Math.abs(s.v2.max), Math.abs(s.v2.min))))
+  for (let i = 0; i < st.length - 1; i++) {
+    const a = st[i], b = st[i + 1]
+    if (Math.abs(a.raw - b.raw) > 1e-6) continue // no es un nudo compartido
+    const va = a.v2.max, vb = b.v2.max
+    const jump = Math.abs(va - vb)
+    if (jump >= minJump * vmax && Math.sign(va) !== Math.sign(vb) && a.raw > 0.05 && a.raw < L - 0.05) sup.push(+a.raw.toFixed(4))
+  }
+  sup.push(L)
+  return [...new Set(sup)].sort((x, y) => x - y)
 }
 
 // ── 2. Perfil de un miembro (lineal por tramos) ──────────────
@@ -334,28 +390,45 @@ export function bastonesForLecho(profile, lecho, key, opts = {}) {
   return { bars: merged, insuficiente, need, zones, MR0 }
 }
 
-/** Revisión de cortante por zonas: extremos L/4 (sepLcuarto) y centro (sepRest) */
-export function shearZones(profile, caps) {
+/**
+ * Revisión de cortante por zonas de estribos: en cada claro (entre apoyos)
+ * los cuartos extremos con sepLcuarto y el centro con sepRest.
+ * @param supports  [x] apoyos (por defecto los dos extremos)
+ */
+export function shearZones(profile, caps, supports = null) {
   const L = profile.L
   const { sL4, sRest } = caps.shear
-  const q = L / 4
+  const sups = supports && supports.length >= 2 ? supports : [0, L]
   const inZone = (x0, x1) => Math.max(0, ...profile.stations.filter((s) => s.x >= x0 - 1e-9 && s.x <= x1 + 1e-9).map((s) => s.vu),
     profileAt(profile, 'vu', x0), profileAt(profile, 'vu', x1))
-  const vEnd = Math.max(inZone(0, q), inZone(L - q, L))
-  const vMid = inZone(q, L - q)
+  let vEnd = 0, vMid = 0, q = L / 4
+  const spans = []
+  for (let i = 0; i < sups.length - 1; i++) {
+    const a = sups[i], b = sups[i + 1], Ls = b - a, qs = Ls / 4
+    if (Ls <= 0) continue
+    vEnd = Math.max(vEnd, inZone(a, a + qs), inZone(b - qs, b))
+    vMid = Math.max(vMid, inZone(a + qs, b - qs))
+    spans.push({ x0: a, x1: b, L: Ls, q: qs })
+  }
+  if (spans.length === 1) q = spans[0].q
   const mk = (Vu, s) => {
     if (!s) return { Vu, s: null, Vr: null, ok: null }
     const c = shearCapacity(caps, L, Vu, s)
-    const ok = !c.seccionInsuficiente && c.Vr >= Vu - 1e-9
+    // pasa si resiste; la separación máxima (d/2, o d/4 si Vsr > 1.1·√f'c·b·d) se
+    // reporta aparte como aviso (okSmax) para que lo decida el diseñador
+    const okVr = !c.seccionInsuficiente && c.Vr >= Vu - 1e-9
+    const okSmax = s <= c.SmaxGeom + 1e-9
+    const ok = okVr
     // separación necesaria si no pasa
     let sReq = null
     if (!ok && !c.seccionInsuficiente) {
       const VsrNec = Vu * 1000 - c.Vcr * 1000
-      sReq = VsrNec > 0 ? Math.max(6, Math.floor(Math.min((c.FR * c.Av * caps.fy * c.d) / VsrNec, c.SmaxGeom))) : c.SmaxGeom
+      const sCalc = VsrNec > 0 ? (c.FR * c.Av * caps.fy * c.d) / VsrNec : c.SmaxGeom
+      sReq = Math.max(6, Math.floor(Math.min(sCalc, c.SmaxGeom)))
     }
-    return { Vu, s, Vr: c.Vr, ok, sReq, insuficiente: c.seccionInsuficiente, sMax: c.SmaxGeom }
+    return { Vu, s, Vr: c.Vr, ok, okVr, okSmax, sReq, insuficiente: c.seccionInsuficiente, sMax: c.SmaxGeom }
   }
-  return { extremos: { ...mk(vEnd, sL4), largo: q }, centro: { ...mk(vMid, sRest), largo: L - 2 * q }, vuMax: profile.vuMax }
+  return { extremos: { ...mk(vEnd, sL4), largo: q }, centro: { ...mk(vMid, sRest), largo: L - 2 * q }, vuMax: profile.vuMax, spans, supports: sups }
 }
 
 /**
@@ -366,13 +439,14 @@ export function analyzeMember(member, caps, { L, invertir = false, minLen } = {}
   const profile = memberProfile(member, L, invertir)
   const inf = bastonesForLecho(profile, caps.inf, 'muP', { minLen })
   const sup = bastonesForLecho(profile, caps.sup, 'muN', { minLen })
-  const shear = shearZones(profile, caps)
+  const supports = member.isElement ? detectSupports(member) : [0, profile.L]
+  const shear = shearZones(profile, caps, supports)
   // Corte de barras en zona de tensión (NTC §5.1.4.1 / ACI 12.10.5): en el punto de corte
   // Vu no debe pasar de 2/3·Vr; si pasa, hay que poner estribos adicionales en el tramo.
-  const q = profile.L / 4
   const vrAt = (x) => {
-    const zone = x < q || x > profile.L - q ? shear.extremos : shear.centro
-    return zone.Vr
+    const sp = shear.spans.find((z) => x >= z.x0 - 1e-9 && x <= z.x1 + 1e-9) || shear.spans[0]
+    const inEnd = sp ? (x < sp.x0 + sp.q || x > sp.x1 - sp.q) : true
+    return (inEnd ? shear.extremos : shear.centro).Vr
   }
   for (const bar of [...inf.bars, ...sup.bars]) {
     bar.corteTension = []
@@ -387,7 +461,35 @@ export function analyzeMember(member, caps, { L, invertir = false, minLen } = {}
   const status = insuf ? 'insuficiente' : (inf.bars.length || sup.bars.length) ? 'baston' : 'ok'
   const sig = (bars, tag) => bars.map((b) => `${tag}${b.k}@${b.x0.toFixed(2)}-${b.x1.toFixed(2)}`).join('|')
   const signature = [sig(inf.bars, 'I'), sig(sup.bars, 'S')].filter(Boolean).join('/') || 'base'
-  return { id: member.id, L: profile.L, profile, inf, sup, shear, shearFail, status, signature }
+  return { id: member.id, L: profile.L, profile, inf, sup, shear, shearFail, status, signature, supports, members: member.members || null, isElement: !!member.isElement }
+}
+
+/**
+ * Miembros a analizar según el perfil: si hay geometría (cadenas) y el
+ * análisis es por elemento, se devuelven los elementos; si no, los miembros.
+ * Respeta perfil.excluir (ids de miembros fuera del grupo).
+ */
+export function unitsFor(perfil) {
+  const excl = new Set((perfil?.excluir || []).map(String))
+  const members = (perfil?.members || []).filter((m) => !excl.has(String(m.id)))
+  const chains = perfil?.geom?.chains
+  if (!chains?.length || perfil.porElemento === false) return members
+  const byId = new Map(members.map((m) => [String(m.id), m]))
+  const used = new Set()
+  const out = []
+  for (const ch of chains) {
+    const present = ch.members.filter((m) => byId.has(String(m.id)))
+    if (!present.length) continue
+    if (present.length !== ch.members.length) {
+      // parte de la cadena fue excluida: se analizan sueltos
+      for (const m of present) { out.push(byId.get(String(m.id))); used.add(String(m.id)) }
+      continue
+    }
+    out.push(buildElement(ch, byId))
+    ch.members.forEach((m) => used.add(String(m.id)))
+  }
+  for (const m of members) if (!used.has(String(m.id))) out.push(m)
+  return out
 }
 
 // ── 6. Grupo completo, patrones y acero ───────────────────────
@@ -400,7 +502,7 @@ export const barWeight = (area) => area * KG_PER_M_PER_CM2 // kg/m
 export function analyzeGroup(t, perfil) {
   const caps = sectionCapacities(t)
   const Ldef = +perfil?.L || 0
-  const results = (perfil?.members || []).map((mb) => {
+  const results = unitsFor(perfil).map((mb) => {
     const L = mb.Lreport || +(perfil?.Lpor?.[mb.id]) || Ldef
     return analyzeMember(mb, caps, { L, invertir: !!perfil?.invertir, minLen: perfil?.minLen })
   })
@@ -475,6 +577,7 @@ export function uniformDesign(t, results) {
 export function optimizeBase(t, perfil, { calibres = ['3', '4', '5', '6'], nMax = 8 } = {}) {
   const members = perfil?.members || []
   if (!members.length) return null
+  const units = unitsFor(perfil)
   const evalLecho = (lechoKey, cal, n) => {
     const patch = lechoKey === 'inf'
       ? { calInf: cal, cantInf: n, calBastonInf: cal, cantBastonInf: n }
@@ -485,7 +588,7 @@ export function optimizeBase(t, perfil, { calibres = ['3', '4', '5', '6'], nMax 
     if (!lecho.base || !lecho.base.okBmin || !lecho.base.okMax || !lecho.base.okMin) return null
     const w = barWeight(lecho.bar.area)
     let kgBase = 0, kgBast = 0, nBast = 0, nInsuf = 0
-    for (const mb of members) {
+    for (const mb of units) {
       const L = mb.Lreport || +(perfil?.Lpor?.[mb.id]) || +perfil.L || 0
       const profile = memberProfile(mb, L, !!perfil.invertir)
       const res = bastonesForLecho(profile, lecho, lechoKey === 'inf' ? 'muP' : 'muN', { minLen: perfil?.minLen })

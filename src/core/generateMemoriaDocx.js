@@ -16,7 +16,7 @@ import { svgToPng, normalizeMeta } from './generateMemoria'
 import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { columnDemand, demandCase } from './columnDemand'
 import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
-import { analyzeGroup } from './longitudinal'
+import { analyzeGroup, unitLabel } from './longitudinal'
 import { elevationSvg } from './longitudinalSvg'
 
 // ── palette ──
@@ -211,7 +211,7 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
     const imgs = []
     for (const p of G.patterns) {
       const title = `${t.nombre || 'Trabe'} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`
-      const subtitle = `M-${p.members.slice(0, 16).join(', M-')}${p.members.length > 16 ? ` … (+${p.members.length - 16})` : ''}`
+      const subtitle = `${p.members.slice(0, 16).map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', ')}${p.members.length > 16 ? ` … (+${p.members.length - 16})` : ''}`
       const svg = elevationSvg(t, p.sample, { scale: 3.2, title, subtitle }).svg
       const img = await prep(await svgToPng(svg).catch(() => null), 560).catch(() => null)
       if (img) imgs.push({ label: p.label, img })
@@ -280,7 +280,7 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
       const bars = (arr, cal) => arr.length ? arr.map((b) => `${b.k}#${cal} L=${fmt(b.len)} m a ${fmt(b.x0)} m del apoyo I${b.ancla ? ` (anclar en ${b.ancla})` : ''}`).join('; ') : 'sin bastón'
       trabeBlocks.push(para([run('Análisis longitudinal — bastones donde hacen falta', { bold: true, size: 21, color: '1F2937' })], { before: 140, after: 60 }))
       trabeBlocks.push(para([
-        run(`Se revisaron los ${G.n} miembros de este tipo de trabe con la envolvente por estaciones del modelo${t.perfil.combo ? ` (${t.perfil.combo})` : ''}. `),
+        run(`Se revisaron ${G.n} ${G.results.some((r) => r.isElement) ? 'elementos (miembros de RAM unidos en su longitud real)' : 'miembros'} de este tipo de trabe con la envolvente por estaciones del modelo${t.perfil.combo ? ` (${t.perfil.combo})` : ''}. `),
         run(`Con el armado corrido (MR+ = ${fmt(G.caps.MRP)} t·m, MR− = ${fmt(G.caps.MRN)} t·m) `),
         run(`${G.nOk} miembro(s) quedan cubiertos y ${G.nBast} requieren bastón sólo en la zona donde el momento rebasa esa resistencia`, { bold: true }),
         run(G.nInsuf ? `; ${G.nInsuf} resultan insuficientes aun con un bastón por varilla` : ''),
@@ -293,7 +293,7 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
       const pHead = ['Patrón', 'Miembros', 'Bastón lecho inferior', 'Bastón lecho superior', 'Estado']
       const pCols = [800, 2400, 2600, 2600, 1239]
       const pRows = G.patterns.map((p) => [
-        p.label, `${p.members.length}: M-${p.members.slice(0, 10).join(', ')}${p.members.length > 10 ? '…' : ''}`,
+        p.label, `${p.members.length}: ${p.members.slice(0, 10).map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', ')}${p.members.length > 10 ? '…' : ''}`,
         bars(p.sample.inf.bars, t.calBastonInf), bars(p.sample.sup.bars, t.calBastonSup),
         [run(p.sample.status === 'insuficiente' ? 'INSUFICIENTE' : p.sample.shearFail ? 'CORTANTE' : p.sample.status === 'baston' ? 'CON BASTÓN' : 'CORRIDAS', { size: 14, bold: true, color: p.sample.status === 'insuficiente' || p.sample.shearFail ? BADC : p.sample.status === 'baston' ? '1D4ED8' : OKC })],
       ])
