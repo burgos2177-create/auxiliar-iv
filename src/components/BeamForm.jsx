@@ -59,6 +59,10 @@ export default function BeamForm() {
   }
   const str = (key) => (e) => set({ [key]: e.target.value })
 
+  // Un bastón por varilla del lecho como máximo
+  const maxBSup = Math.max(0, Number(form.cantSup) || 0)
+  const maxBInf = Math.max(0, Number(form.cantInf) || 0)
+
   const hasSelection = selectedIdx >= 0 && selectedIdx < sections.length
   const disabled = !hasSelection
 
@@ -187,7 +191,7 @@ export default function BeamForm() {
               {/* Bastón superior */}
               <div style={{ paddingLeft: 8, borderLeft: '2px solid var(--color-steel-top)', opacity: 0.85 }}>
                 <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--color-tx3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Bast&oacute;n sup. (0–2)
+                  Bast&oacute;n sup. (0–{maxBSup})
                 </div>
                 <Row>
                   <Field label="Calibre">
@@ -196,9 +200,12 @@ export default function BeamForm() {
                     </select>
                   </Field>
                   <Field label="Cantidad">
-                    <input className="field-input" type="number" min="0" max="2" value={form.cantBastonSup} onChange={num('cantBastonSup')} />
+                    <input className="field-input" type="number" min="0" max={maxBSup} value={form.cantBastonSup} onChange={num('cantBastonSup')} />
                   </Field>
                 </Row>
+                <div style={{ fontSize: 9.5, color: 'var(--color-tx3)', marginTop: 3, lineHeight: 1.35 }}>
+                  Uno por varilla (amarre de pares). Suma al As y al MR; no cambia b m&iacute;n.
+                </div>
               </div>
             </div>
           </div>
@@ -220,7 +227,7 @@ export default function BeamForm() {
               {/* Bastón inferior */}
               <div style={{ paddingLeft: 8, borderLeft: '2px solid var(--color-steel-bot)', opacity: 0.85 }}>
                 <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--color-tx3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Bast&oacute;n inf. (0–2)
+                  Bast&oacute;n inf. (0–{maxBInf})
                 </div>
                 <Row>
                   <Field label="Calibre">
@@ -229,9 +236,12 @@ export default function BeamForm() {
                     </select>
                   </Field>
                   <Field label="Cantidad">
-                    <input className="field-input" type="number" min="0" max="2" value={form.cantBastonInf} onChange={num('cantBastonInf')} />
+                    <input className="field-input" type="number" min="0" max={maxBInf} value={form.cantBastonInf} onChange={num('cantBastonInf')} />
                   </Field>
                 </Row>
+                <div style={{ fontSize: 9.5, color: 'var(--color-tx3)', marginTop: 3, lineHeight: 1.35 }}>
+                  Uno por varilla (amarre de pares). Suma al As y al MR; no cambia b m&iacute;n.
+                </div>
               </div>
             </div>
           </div>

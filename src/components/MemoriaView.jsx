@@ -231,7 +231,8 @@ function SeccionFlexion({ res, lecho, Mu, acento, pfx, fc, fy, b, h, r, fcRed })
         <Linea simbolo="b_min" formula="b_min = 2r + (2n − 1) × Ø_varilla"
           sust={`2(${r}) + (2×${res.nUsed}−1) × ${res.vr.diam}`}
           resultado={fmt(res.bMin)} unidad="cm"
-          ok={res.okBmin} nota={`b = ${b} cm`}/>
+          ok={res.okBmin}
+          nota={`b = ${b} cm${res.nBastones > 0 ? ' · n = varillas del lecho; los bastones van amarrados y no ocupan ancho' : ''}`}/>
         <Linea formula="As_total ≥ As_min"
           sust={`${fmt(res.AsTotal)} ≥ ${fmt(res.AsMin)}`} ok={res.okMin}/>
         <Linea formula="As_total ≤ As_max"

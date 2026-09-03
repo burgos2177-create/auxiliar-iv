@@ -106,7 +106,7 @@ function CalcRow({ label, value, unit, tag, dim = false, tooltip }) {
   )
 }
 
-function CInput({ label, value, onChange, unit, min, step = 'any', style: extraStyle }) {
+function CInput({ label, value, onChange, unit, min, max, step = 'any', style: extraStyle }) {
   return (
     <div style={{ marginBottom: 6, ...extraStyle }}>
       <label className="field-label">{label}</label>
@@ -114,7 +114,7 @@ function CInput({ label, value, onChange, unit, min, step = 'any', style: extraS
         <input
           type="number" value={value}
           onChange={(e) => onChange(e.target.value)}
-          min={min} step={step}
+          min={min} max={max} step={step}
           className="field-input"
           style={{ flex: 1 }}
         />
@@ -159,7 +159,7 @@ const TT = {
   rhoReal: { formula: 'ρ_real = As_total / (b × d)', vars: ['As_total', 'b', 'd'] },
   q: { formula: 'q = ρ_real × fy / f\'\'c', vars: ['ρ_real', 'fy', 'f\'\'c'] },
   MRT: { formula: 'MRT = FR × As_total × fy × (d − a/2)\na = As_total × fy / (f\'\'c × b)', vars: ['FR', 'As_total', 'fy', 'd', 'a'] },
-  bMin: { formula: 'b_min = 2r + (2n − 1) × Ø_varilla', vars: ['r', 'n', 'Ø_varilla'] },
+  bMin: { formula: 'b_min = 2r + (2n − 1) × Ø_varilla\nn = varillas del lecho (los bastones van amarrados, no ocupan ancho)', vars: ['r', 'n', 'Ø_varilla'] },
 }
 
 const TC = {
@@ -299,14 +299,14 @@ export default function CalculatorView() {
       patch.varPCount = Number(sec.cantInf) || 0
       patch.varEstNum = estNum
 
-      // Prefill bastones from detailer
+      // Prefill bastones from detailer — máximo uno por varilla del lecho
       if (sec.cantBastonSup > 0) {
         patch.bastonNNum = CAL_TO_NUM[sec.calBastonSup] || supNum
-        patch.bastonNCount = Math.min(Number(sec.cantBastonSup) || 0, 2)
+        patch.bastonNCount = Math.min(Number(sec.cantBastonSup) || 0, patch.varNCount || 0)
       }
       if (sec.cantBastonInf > 0) {
         patch.bastonPNum = CAL_TO_NUM[sec.calBastonInf] || infNum
-        patch.bastonPCount = Math.min(Number(sec.cantBastonInf) || 0, 2)
+        patch.bastonPCount = Math.min(Number(sec.cantBastonInf) || 0, patch.varPCount || 0)
       }
 
       // Prefill moments and shear from detailer (for old projects without calc block)
@@ -494,7 +494,7 @@ export default function CalculatorView() {
             <div style={{ paddingLeft: 8, borderLeft: '2px solid #c94f2a', marginTop: 4 }}>
               <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--color-tx3)', marginBottom: 4, textTransform: 'uppercase' }}>Bastón M−</div>
               <CSelect label="Varilla bastón" value={calc.bastonNNum} onChange={(v) => setCalc({ bastonNNum: v })} options={VAR_OPTS} />
-              <CInput label="Cantidad (0–2)" value={calc.bastonNCount} onChange={(v) => setCalc({ bastonNCount: v })} min={0} step={1} />
+              <CInput label={`Cantidad (0–${resN.nUsed || 0})`} value={calc.bastonNCount} onChange={(v) => setCalc({ bastonNCount: v })} min={0} max={resN.nUsed || 0} step={1} />
             </div>
 
             <SectionHeader style={{ marginTop: 10, color: '#2563a8' }}>Acero inferior (M+)</SectionHeader>
@@ -503,7 +503,7 @@ export default function CalculatorView() {
             <div style={{ paddingLeft: 8, borderLeft: '2px solid #2563a8', marginTop: 4 }}>
               <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--color-tx3)', marginBottom: 4, textTransform: 'uppercase' }}>Bastón M+</div>
               <CSelect label="Varilla bastón" value={calc.bastonPNum} onChange={(v) => setCalc({ bastonPNum: v })} options={VAR_OPTS} />
-              <CInput label="Cantidad (0–2)" value={calc.bastonPCount} onChange={(v) => setCalc({ bastonPCount: v })} min={0} step={1} />
+              <CInput label={`Cantidad (0–${resP.nUsed || 0})`} value={calc.bastonPCount} onChange={(v) => setCalc({ bastonPCount: v })} min={0} max={resP.nUsed || 0} step={1} />
             </div>
           </div>
 

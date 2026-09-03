@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import { computeGeometry } from './beamGeometry'
+import { computeGeometry, placeBastones } from './beamGeometry'
 import { DIAM } from './constants'
 import { calcFlexion, calcCortante } from './sectionCalculator'
 import { analyzeColumn, calcEstribos, barGrid, bdLookup } from './columnCalculator'
@@ -58,27 +58,21 @@ function drawSection(doc, section, ox, oy, drawScale = 2.2) {
   setDraw(doc, COL.steelTop)
   setFill(doc, [255, 213, 200])
   doc.setLineWidth(0.2)
+  const topBars = []
   for (let i = 0; i < t.cantSup; i++) {
     const cx = t.cantSup === 1 ? ox + recubMm : ox + recubMm + (i * innerW) / (t.cantSup - 1)
     const cy = oy + recubMm
+    topBars.push({ cx, cy, r: rSupMm })
     doc.circle(cx, cy, rSupMm, 'FD')
   }
 
-  // Top bastones
-  const cantBSup = Math.min(Number(t.cantBastonSup) || 0, 2)
-  if (cantBSup >= 1 && t.cantSup >= 2) {
+  // Top bastones — hasta uno por varilla del lecho
+  {
     const rBMm = Math.max((DIAM[t.calBastonSup] / 20) * s, 0.8)
     setDraw(doc, COL.steelTop)
     doc.setFillColor(255, 255, 255)
-    // Left baston at ~53°
-    const lbCx = ox + recubMm, lbCy = oy + recubMm
-    const angle = (53 * Math.PI) / 180
-    const off = rSupMm + rBMm + 0.3
-    doc.circle(lbCx + off * Math.cos(angle), lbCy + off * Math.sin(angle), rBMm, 'FD')
-    if (cantBSup >= 2) {
-      // Right baston at 90°
-      const rbCx = ox + recubMm + innerW, rbCy = oy + recubMm
-      doc.circle(rbCx, rbCy + rSupMm + rBMm + 0.3, rBMm, 'FD')
+    for (const bt of placeBastones(topBars, t.cantBastonSup, rBMm, { dir: 1, gap: 0.3, gapDiag: 0.3, diagFirst: true })) {
+      doc.circle(bt.cx, bt.cy, bt.r, 'FD')
     }
   }
 
@@ -86,23 +80,21 @@ function drawSection(doc, section, ox, oy, drawScale = 2.2) {
   const rInfMm = Math.max((DIAM[t.calInf] / 20) * s, 0.8)
   setDraw(doc, COL.steelBot)
   setFill(doc, [207, 224, 247])
+  const botBars = []
   for (let i = 0; i < t.cantInf; i++) {
     const cx = t.cantInf === 1 ? ox + recubMm : ox + recubMm + (i * innerW) / (t.cantInf - 1)
     const cy = oy + hMm - recubMm
+    botBars.push({ cx, cy, r: rInfMm })
     doc.circle(cx, cy, rInfMm, 'FD')
   }
 
-  // Bottom bastones
-  const cantBInf = Math.min(Number(t.cantBastonInf) || 0, 2)
-  if (cantBInf >= 1 && t.cantInf >= 2) {
+  // Bottom bastones — hasta uno por varilla del lecho
+  {
     const rBMm = Math.max((DIAM[t.calBastonInf] / 20) * s, 0.8)
     setDraw(doc, COL.steelBot)
     doc.setFillColor(255, 255, 255)
-    const lbCx = ox + recubMm, lbCy = oy + hMm - recubMm
-    doc.circle(lbCx, lbCy - rInfMm - rBMm - 0.3, rBMm, 'FD')
-    if (cantBInf >= 2) {
-      const rbCx = ox + recubMm + innerW, rbCy = oy + hMm - recubMm
-      doc.circle(rbCx, rbCy - rInfMm - rBMm - 0.3, rBMm, 'FD')
+    for (const bt of placeBastones(botBars, t.cantBastonInf, rBMm, { dir: -1, gap: 0.3 })) {
+      doc.circle(bt.cx, bt.cy, bt.r, 'FD')
     }
   }
 
@@ -503,8 +495,10 @@ export function generateReport(sections, projectName = '', columns = []) {
       y = marginT
     }
 
-    const totalSup = (Number(t.cantSup) || 0) + Math.min(Number(t.cantBastonSup) || 0, 2)
-    const totalInf = (Number(t.cantInf) || 0) + Math.min(Number(t.cantBastonInf) || 0, 2)
+    const nSup = Number(t.cantSup) || 0
+    const nInf = Number(t.cantInf) || 0
+    const totalSup = nSup + Math.max(0, Math.min(Number(t.cantBastonSup) || 0, nSup))
+    const totalInf = nInf + Math.max(0, Math.min(Number(t.cantBastonInf) || 0, nInf))
 
     // Card background
     setFill(doc, COL.white)

@@ -48,7 +48,9 @@ export function calcFlexion({ fc, fy, b, h, r, MuTm, varNum, varCount, bastonNum
   const AsBarras = nUsed * vr.area;
 
   const vb = VARILLAS.find(v => v.num === bastonNum) || VARILLAS[2];
-  const nBastones = bastonCount || 0;
+  // Cada bastón va amarrado a una varilla del lecho: no puede haber más
+  // bastones que varillas principales.
+  const nBastones = Math.max(0, Math.min(bastonCount || 0, nUsed));
   const AsBastones = nBastones * vb.area;
   const AsTotal = AsBarras + AsBastones;
 
@@ -58,6 +60,8 @@ export function calcFlexion({ fc, fy, b, h, r, MuTm, varNum, varCount, bastonNum
   const a = (AsTotal * fy) / (fcRed * b);
   const MRT = FR * AsTotal * fy * (d - a / 2) / 100000;
   const MRC = FR * b * d * d * fcRed * q * (1 - 0.5 * q) / 100000;
+  // b_min sólo con las varillas del lecho: los bastones van amarrados a una
+  // varilla existente, no piden un espacio libre adicional a lo ancho.
   const bMin = 2 * r + (2 * nUsed - 1) * vr.diam;
 
   return {
@@ -174,8 +178,10 @@ export function optimizeFlexion({ fc, fy, b, h, r, MuTm }) {
   for (const vr of VARILLAS) {
     if (vr.num < 3) continue;
     const nCalc = Math.ceil(AsReq / vr.area);
-    for (let nBast = 0; nBast <= 2; nBast++) {
+    // Se pueden amarrar hasta tantos bastones como varillas tenga el lecho
+    for (let nBast = 0; nBast <= nCalc; nBast++) {
       const nMain = nBast > 0 ? Math.max(2, nCalc - nBast) : nCalc;
+      if (nBast > nMain) continue;
       const AsTotal = nMain * vr.area + nBast * vr.area;
       const bMin = 2 * r + (2 * nMain - 1) * vr.diam;
       if (AsTotal >= AsReq && AsTotal <= AsMax && b >= bMin) {

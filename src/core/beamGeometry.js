@@ -1,5 +1,64 @@
 import { DIAM } from './constants'
 
+// ══════════════════════════════════════════════════════════════
+// Bastones (varillas de amarre)
+// Se amarra un bastón por varilla del lecho, así que el límite es la
+// cantidad de varillas principales. Los bastones NO cuentan para b_min:
+// van amarrados a una varilla existente, no ocupan un espacio libre
+// nuevo a lo ancho de la sección.
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Orden de amarre: primero las varillas de esquina y después hacia el
+ * centro, de izquierda a derecha.
+ * @returns {number[]} índices de varilla, uno por bastón
+ */
+export function tieOrder(nBars, nBastones) {
+  const n = Math.max(0, Math.min(Number(nBastones) || 0, nBars))
+  if (n === 0) return []
+  const order = []
+  if (nBars >= 1) order.push(0)
+  if (nBars >= 2) order.push(nBars - 1)
+  for (let i = 1; i <= nBars - 2; i++) order.push(i)
+  return order.slice(0, n)
+}
+
+/**
+ * Posiciona los bastones amarrados a las varillas de un lecho.
+ * @param {Array} bars  varillas principales [{cx, cy, r}] de izq. a der.
+ * @param {number} nBastones
+ * @param {number} rB   radio del bastón (mismas unidades que bars)
+ * @param {object} opts { dir: +1 hacia abajo (lecho sup) | −1 hacia arriba
+ *                        (lecho inf), gap, gapDiag, diagFirst }
+ *   diagFirst coloca el primer bastón a ~53° para no encimarse con los
+ *   ganchos del estribo, que se dibujan en la varilla superior izquierda.
+ */
+export function placeBastones(bars, nBastones, rB, opts = {}) {
+  const { dir = 1, gap = 1.5, gapDiag = 1, diagFirst = false } = opts
+  const ang = (53 * Math.PI) / 180
+  return tieOrder(bars.length, nBastones).map((idx) => {
+    const mb = bars[idx]
+    if (diagFirst && idx === 0) {
+      const off = mb.r + rB + gapDiag
+      const cx = mb.cx + off * Math.cos(ang)
+      const cy = mb.cy + off * Math.sin(ang)
+      return {
+        cx, cy, r: rB, bar: idx,
+        tx0: mb.cx + mb.r * Math.cos(ang), ty0: mb.cy + mb.r * Math.sin(ang),
+        tx1: cx - rB * Math.cos(ang), ty1: cy - rB * Math.sin(ang),
+      }
+    }
+    const off = mb.r + rB + gap
+    const cx = mb.cx
+    const cy = mb.cy + dir * off
+    return {
+      cx, cy, r: rB, bar: idx,
+      tx0: mb.cx, ty0: mb.cy + dir * mb.r,
+      tx1: cx, ty1: cy - dir * rB,
+    }
+  })
+}
+
 /**
  * Compute all geometry for drawing a beam section.
  * All values returned in SCALE units (px for rendering).
@@ -60,73 +119,20 @@ export function computeGeometry(section, scale = 14) {
   hook2.x1 = hook2.x0 + hx * gLen
   hook2.y1 = hook2.y0 + hy * gLen
 
-  // ── Bastones (dowel bars) ──
-  const cantBSup = Math.min(Number(t.cantBastonSup) || 0, 2)
-  const cantBInf = Math.min(Number(t.cantBastonInf) || 0, 2)
+  // ── Bastones (varillas de amarre) — hasta uno por varilla del lecho ──
+  const cantBSup = Math.max(0, Math.min(Number(t.cantBastonSup) || 0, supBars.length))
+  const cantBInf = Math.max(0, Math.min(Number(t.cantBastonInf) || 0, infBars.length))
   const rBSupPx = (DIAM[t.calBastonSup] / 20) * scale
   const rBInfPx = (DIAM[t.calBastonInf] / 20) * scale
-  const bastonLen = scale * 1.6 // tie line length in px
 
-  // Top bastones: at 45° going down from corner bars
-  const bastonsSup = []
-  if (cantBSup >= 1 && supBars.length >= 2) {
-    // Left corner bar → baston at ~53° down-right, offset = 1 diameter (almost touching)
-    const lb = supBars[0]
-    const rB = Math.max(rBSupPx, 3.5)
-    const angle = (53 * Math.PI) / 180 // ~53° from horizontal
-    const offDist = lb.r + rB + 1 // just 1px gap — almost touching
-    const bx = lb.cx + offDist * Math.cos(angle)
-    const by = lb.cy + offDist * Math.sin(angle)
-    bastonsSup.push({
-      cx: bx, cy: by, r: rB,
-      tx0: lb.cx + lb.r * Math.cos(angle),
-      ty0: lb.cy + lb.r * Math.sin(angle),
-      tx1: bx - rB * Math.cos(angle),
-      ty1: by - rB * Math.sin(angle),
-    })
-  }
-  if (cantBSup >= 2 && supBars.length >= 2) {
-    // Right corner bar → baston straight down (90°)
-    const rb = supBars[supBars.length - 1]
-    const offDist = rb.r + Math.max(rBSupPx, 3.5) + 1.5
-    const bx = rb.cx
-    const by = rb.cy + offDist
-    const rB = Math.max(rBSupPx, 3.5)
-    bastonsSup.push({
-      cx: bx, cy: by, r: rB,
-      tx0: rb.cx, ty0: rb.cy + rb.r,
-      tx1: bx, ty1: by - rB,
-    })
-  }
-
-  // Bottom bastones: at 90° going up from corner bars
-  const bastonsInf = []
-  if (cantBInf >= 1 && infBars.length >= 2) {
-    // Left corner bar → baston straight up
-    const lb = infBars[0]
-    const offDist = lb.r + Math.max(rBInfPx, 3.5) + 1.5
-    const bx = lb.cx
-    const by = lb.cy - offDist
-    const rB = Math.max(rBInfPx, 3.5)
-    bastonsInf.push({
-      cx: bx, cy: by, r: rB,
-      tx0: lb.cx, ty0: lb.cy - lb.r,
-      tx1: bx, ty1: by + rB,
-    })
-  }
-  if (cantBInf >= 2 && infBars.length >= 2) {
-    // Right corner bar → baston straight up
-    const rb = infBars[infBars.length - 1]
-    const offDist = rb.r + Math.max(rBInfPx, 3.5) + 1.5
-    const bx = rb.cx
-    const by = rb.cy - offDist
-    const rB = Math.max(rBInfPx, 3.5)
-    bastonsInf.push({
-      cx: bx, cy: by, r: rB,
-      tx0: rb.cx, ty0: rb.cy - rb.r,
-      tx1: bx, ty1: by + rB,
-    })
-  }
+  // Lecho superior: bastones hacia abajo (el primero a 53° para librar los ganchos)
+  const bastonsSup = placeBastones(supBars, cantBSup, Math.max(rBSupPx, 3.5), {
+    dir: 1, gap: 1.5, gapDiag: 1, diagFirst: true,
+  })
+  // Lecho inferior: bastones hacia arriba
+  const bastonsInf = placeBastones(infBars, cantBInf, Math.max(rBInfPx, 3.5), {
+    dir: -1, gap: 1.5,
+  })
 
   // Label counts (main + bastones)
   const totalSup = (Number(t.cantSup) || 0) + cantBSup

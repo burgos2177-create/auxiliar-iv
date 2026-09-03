@@ -45,6 +45,15 @@ const defaultSection = (nombre = '') => ({
   envelope: null, // { archivo, combo, invertir, points:[...] }
 })
 
+// Cada bastón se amarra a una varilla del lecho: nunca puede haber más
+// bastones que varillas principales. Se respeta el valor tal cual mientras
+// alguno de los dos campos esté vacío (el usuario sigue escribiendo).
+const clampBastones = (nb, nv) => {
+  const b = Number(nb), v = Number(nv)
+  if (nb === '' || nv === '' || !Number.isFinite(b) || !Number.isFinite(v) || v <= 0) return nb
+  return Math.max(0, Math.min(b, v))
+}
+
 let counter = 0
 
 const useBeamStore = create((set, get) => ({
@@ -61,6 +70,13 @@ const useBeamStore = create((set, get) => ({
   // Set form AND auto-save + sync form → calc
   setForm: (patch) => set((s) => {
     const newForm = { ...s.form, ...patch }
+    // Un bastón por varilla como máximo (también al bajar la cantidad de varillas)
+    if ('cantSup' in patch || 'cantBastonSup' in patch) {
+      newForm.cantBastonSup = clampBastones(newForm.cantBastonSup, newForm.cantSup)
+    }
+    if ('cantInf' in patch || 'cantBastonInf' in patch) {
+      newForm.cantBastonInf = clampBastones(newForm.cantBastonInf, newForm.cantInf)
+    }
     // Sync form → calc for rebar, moments, stirrups
     const cp = {}
     if ('calSup' in patch) cp.varNNum = CAL_TO_NUM[patch.calSup] || 3
@@ -68,9 +84,9 @@ const useBeamStore = create((set, get) => ({
     if ('calInf' in patch) cp.varPNum = CAL_TO_NUM[patch.calInf] || 3
     if ('cantInf' in patch) cp.varPCount = Number(patch.cantInf) || 0
     if ('calBastonSup' in patch) cp.bastonNNum = CAL_TO_NUM[patch.calBastonSup] || 3
-    if ('cantBastonSup' in patch) cp.bastonNCount = Number(patch.cantBastonSup) || 0
+    if ('cantBastonSup' in patch || 'cantSup' in patch) cp.bastonNCount = Number(newForm.cantBastonSup) || 0
     if ('calBastonInf' in patch) cp.bastonPNum = CAL_TO_NUM[patch.calBastonInf] || 3
-    if ('cantBastonInf' in patch) cp.bastonPCount = Number(patch.cantBastonInf) || 0
+    if ('cantBastonInf' in patch || 'cantInf' in patch) cp.bastonPCount = Number(newForm.cantBastonInf) || 0
     if ('calEst' in patch) cp.varEstNum = CAL_TO_NUM[patch.calEst] || 2
     if ('sepLcuarto' in patch) cp.SL4 = Number(patch.sepLcuarto) || null
     if ('sepRest' in patch) cp.SLresto = Number(patch.sepRest) || null
@@ -91,6 +107,13 @@ const useBeamStore = create((set, get) => ({
   // Set calc sub-object AND auto-save + sync calc → form
   setCalc: (patch) => set((s) => {
     const newCalc = { ...s.form.calc, ...patch }
+    // Un bastón por varilla como máximo (varCount = 0 significa "automático")
+    if ('bastonNCount' in patch || 'varNCount' in patch) {
+      newCalc.bastonNCount = clampBastones(newCalc.bastonNCount, newCalc.varNCount)
+    }
+    if ('bastonPCount' in patch || 'varPCount' in patch) {
+      newCalc.bastonPCount = clampBastones(newCalc.bastonPCount, newCalc.varPCount)
+    }
     const newForm = { ...s.form, calc: newCalc }
     // Sync calc → form
     if ('varNNum' in patch) newForm.calSup = NUM_TO_CAL[patch.varNNum] || String(patch.varNNum)
@@ -98,9 +121,9 @@ const useBeamStore = create((set, get) => ({
     if ('varPNum' in patch) newForm.calInf = NUM_TO_CAL[patch.varPNum] || String(patch.varPNum)
     if ('varPCount' in patch && Number(patch.varPCount) > 0) newForm.cantInf = Number(patch.varPCount)
     if ('bastonNNum' in patch) newForm.calBastonSup = NUM_TO_CAL[patch.bastonNNum] || String(patch.bastonNNum)
-    if ('bastonNCount' in patch) newForm.cantBastonSup = Number(patch.bastonNCount)
+    if ('bastonNCount' in patch || 'varNCount' in patch) newForm.cantBastonSup = Number(newCalc.bastonNCount) || 0
     if ('bastonPNum' in patch) newForm.calBastonInf = NUM_TO_CAL[patch.bastonPNum] || String(patch.bastonPNum)
-    if ('bastonPCount' in patch) newForm.cantBastonInf = Number(patch.bastonPCount)
+    if ('bastonPCount' in patch || 'varPCount' in patch) newForm.cantBastonInf = Number(newCalc.bastonPCount) || 0
     if ('varEstNum' in patch) newForm.calEst = NUM_TO_CAL[patch.varEstNum] || String(patch.varEstNum)
     if ('MuP' in patch) newForm.muPos = Number(patch.MuP) || ''
     if ('MuN' in patch) newForm.muNeg = Number(patch.MuN) || ''

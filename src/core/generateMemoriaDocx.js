@@ -93,7 +93,9 @@ function flexRows(res, Mu, fc, fy, b, h, r) {
     ['Armado', '—', '—', `${res.nUsed} #${res.vr.num}${res.nBastones > 0 ? ` + ${res.nBastones} #${res.vb.num}` : ''}`],
     ['As total', 'As_barras + As_bastones', `${fmt(res.AsBarras, 2)} + ${fmt(res.AsBastones, 2)}`, `${fmt(res.AsTotal, 2)} cm²`],
     ['MRT', 'FR · As · fy · (d − a/2)', `0.9 × ${fmt(res.AsTotal, 2)} × ${fy} × (${fmt(d, 1)} − ${fmt(res.a, 2)}/2)`, [run(`${fmt(res.MRT, 2)} t·m`, { size: 17 }), okRun(res.okMR), run(`  (Mu = ${fmt(Mu, 2)})`, { size: 15, color: GREY })]],
-    ['b mín', '2r + (2n−1) · Ø', `2×${r} + (2×${res.nUsed}−1) × ${fmt(res.vr.diam, 3)}`, [run(`${fmt(res.bMin, 1)} cm`, { size: 17 }), okRun(res.okBmin)]],
+    ['b mín', '2r + (2n−1) · Ø', `2×${r} + (2×${res.nUsed}−1) × ${fmt(res.vr.diam, 3)}`,
+      [run(`${fmt(res.bMin, 1)} cm`, { size: 17 }), okRun(res.okBmin),
+        ...(res.nBastones > 0 ? [run('  (n = varillas del lecho; los bastones van amarrados)', { size: 13, color: GREY })] : [])]],
   ]
 }
 function cortRows(resC, VuTon, fc, fy, b, h, r, L, AsUsada, nramas) {

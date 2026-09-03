@@ -151,7 +151,8 @@ export function renderFlexion(res, lecho, Mu, acento, fc, fy, b, h, r) {
 
   // Paso 9
   html += paso('9', 'Verificaciones finales · NTC-2023 arts. 5.2.1.3.1, 5.2.3 y 6.3.5.2.1', '#dde1ec',
-    linea('b_min', 'b_min = 2r + (2n − 1) × Ø_varilla', `2(${r}) + (2×${res.nUsed}−1) × ${res.vr.diam}`, fmt(res.bMin), 'cm', res.okBmin, `b = ${b} cm`) +
+    linea('b_min', 'b_min = 2r + (2n − 1) × Ø_varilla', `2(${r}) + (2×${res.nUsed}−1) × ${res.vr.diam}`, fmt(res.bMin), 'cm', res.okBmin,
+      `b = ${b} cm${res.nBastones > 0 ? ' · n = varillas del lecho; los bastones van amarrados y no ocupan ancho' : ''}`) +
     linea(null, 'As_total ≥ As_min', `${fmt(res.AsTotal)} ≥ ${fmt(res.AsMin)}`, undefined, undefined, res.okMin) +
     linea(null, 'As_total ≤ As_max', `${fmt(res.AsTotal)} ≤ ${fmt(res.AsMax)}`, undefined, undefined, res.okMax)
   )
