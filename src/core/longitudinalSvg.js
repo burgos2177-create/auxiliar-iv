@@ -218,9 +218,21 @@ export function diagramSvg(r, caps, opts = {}) {
   // etiqueta de pico: anclada hacia adentro del diagrama
   const peakAnchor = (x) => (x < 0.25 * L ? ['start', 3] : x > 0.75 * L ? ['end', -3] : ['middle', 0])
   mrLine(MRP, C.bot, `MR+ corridas ${f2(MRP)}`, true)
-  if (kInf) mrLine(MRPk, C.bot, `MR+ con ${kInf} bastón(es) ${f2(MRPk)}`, false)
   mrLine(-MRN, C.top, `MR− corridas ${f2(MRN)}`, true)
-  if (kSup) mrLine(-MRNk, C.top, `MR− con ${kSup} bastón(es) ${f2(MRNk)}`, false)
+  // Envolvente REAL de resistencia: sube en rampa (Ld) donde empieza el bastón y baja donde termina
+  const capPath = (cap, sign) => cap.map((p, i) => `${i === 0 ? 'M' : 'L'}${xs(p.x).toFixed(1)},${ym(sign * p.MR).toFixed(1)}`).join(' ')
+  if (r.inf.cap && kInf) {
+    P(`<path d="${capPath(r.inf.cap, 1)}" fill="none" stroke="${C.bot}" stroke-width="2.2"/>`)
+    P(`<text x="${(PAD.l + plotW * 0.62).toFixed(1)}" y="${(ym(MRPk) + 11).toFixed(1)}" font-size="9.5" fill="${C.bot}">MR+ con ${kInf} bastón(es) ${f2(MRPk)} — envolvente desarrollada (Ld ${f2(caps.inf.Ld.Ld / 100)} m)</text>`)
+  }
+  if (r.sup.cap && kSup) {
+    P(`<path d="${capPath(r.sup.cap, -1)}" fill="none" stroke="${C.top}" stroke-width="2.2"/>`)
+    P(`<text x="${(PAD.l + plotW * 0.62).toFixed(1)}" y="${(ym(-MRNk) - 3).toFixed(1)}" font-size="9.5" fill="${C.top}">MR− con ${kSup} bastón(es) ${f2(MRNk)} — envolvente desarrollada (Ld ${f2(caps.sup.Ld.Ld / 100)} m)</text>`)
+  }
+  // puntos donde Mu rebasa la envolvente (no debería haber tras alargar; si los hay, en rojo)
+  for (const v of [...(r.inf.capViol || []).map((v) => ({ ...v, s: 1 })), ...(r.sup.capViol || []).map((v) => ({ ...v, s: -1 }))]) {
+    P(`<circle cx="${xs(v.x).toFixed(1)}" cy="${ym(v.s * v.Mu).toFixed(1)}" r="3.5" fill="${C.bad}"/>`)
+  }
   // curvas (lineal por tramos, como el reporte)
   const st = r.profile.stations
   const path = (key, sign) => st.map((s, i) => `${i === 0 ? 'M' : 'L'}${xs(s.x).toFixed(1)},${ym(sign * s[key]).toFixed(1)}`).join(' ')

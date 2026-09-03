@@ -14,7 +14,7 @@ import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { columnDemand, demandCase } from './columnDemand'
 import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
 import { analyzeGroup, unitLabel } from './longitudinal'
-import { elevationSvg } from './longitudinalSvg'
+import { elevationSvg, diagramSvg } from './longitudinalSvg'
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const fmt = (v, d = 2) => (v === null || v === undefined || isNaN(v) ? '—' : Number(v).toFixed(d))
@@ -297,7 +297,8 @@ function longitudinalHTML(t) {
     <td>${bars(p.sample.inf.bars, t.calBastonInf)}</td><td>${bars(p.sample.sup.bars, t.calBastonSup)}</td><td style="text-align:center">${estado(p.sample)}</td></tr>`).join('')
   const alzados = G.patterns.map((p) => {
     const e = elevationSvg(t, p.sample, { scale: 3.2, title: `${t.nombre || 'Trabe'} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`, subtitle: `${p.members.slice(0, 16).map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', ')}${p.members.length > 16 ? ` … (+${p.members.length - 16})` : ''}` })
-    return `<div style="margin:8px 0">${e.svg.replace('<svg ', '<svg style="width:100%;height:auto" ')}</div>`
+    const d = p.signature === 'base' ? '' : diagramSvg(p.sample, G.caps, { width: 820 }).replace('<svg ', '<svg style="width:100%;height:auto" ')
+    return `<div style="margin:8px 0">${d}${e.svg.replace('<svg ', '<svg style="width:100%;height:auto" ')}</div>`
   }).join('')
   const ahorro = G.acero.ahorro != null
     ? ` frente a ${fmt(G.acero.uniforme, 0)} kg del diseño uniforme (${G.uniforme.inf.n}#${G.uniforme.inf.bar.num} / ${G.uniforme.sup.n}#${G.uniforme.sup.bar.num} corridas sin bastones): <b style="color:${G.acero.ahorro > 0 ? '#15803d' : '#b45309'}">${G.acero.ahorro >= 0 ? 'ahorro' : 'exceso'} de ${fmt(Math.abs(G.acero.ahorro), 0)} kg (${fmt(100 * Math.abs(G.acero.ahorro) / G.acero.uniforme, 0)} %)</b>`
@@ -305,7 +306,7 @@ function longitudinalHTML(t) {
   return `<h4 class="mem" style="margin-top:14px">Análisis longitudinal — bastones donde hacen falta</h4>
     <p class="mem-p">Se revisaron <b>${G.n} ${G.results.some((r) => r.isElement) ? 'elementos</b> (miembros de RAM unidos en su longitud real)' : 'miembros</b>'} de este tipo de trabe con la envolvente por estaciones del modelo${t.perfil.combo ? ` (${esc(t.perfil.combo)})` : ''}.
     Con el armado corrido (MR+ = ${fmt(G.caps.MRP, 2)} t·m, MR− = ${fmt(G.caps.MRN, 2)} t·m) <b>${G.nOk}</b> miembro(s) quedan cubiertos y <b>${G.nBast}</b> requieren bastón sólo donde el momento rebasa esa resistencia${G.nInsuf ? `; <b style="color:#b91c1c">${G.nInsuf} insuficientes</b>` : ''}${G.nShear ? `; <b style="color:#b91c1c">${G.nShear} no cumplen por cortante</b>` : ''}.
-    Los bastones se prolongan ≥ máx(d, 12db) = ${fmt(G.caps.inf.ext, 0)} cm más allá del punto teórico de corte y desarrollan Ld = ${fmt(G.caps.inf.Ld.Ld, 0)}/${fmt(G.caps.sup.Ld.Ld, 0)} cm desde el punto de momento máximo (NTC-2017 §5.1 y §6.1.2); los que llegan a un apoyo se anclan en él.
+    Los bastones se prolongan ≥ máx(d, 12db) = ${fmt(G.caps.inf.ext, 0)} cm más allá del punto teórico de corte y desarrollan Ld = ${fmt(G.caps.inf.Ld.Ld, 0)}/${fmt(G.caps.sup.Ld.Ld, 0)} cm desde el punto de momento máximo (NTC-2017 §5.1 y §6.1.2); los que llegan a un apoyo se anclan en él. La envolvente de resistencia considera el acero del bastón desarrollado gradualmente a lo largo de Ld desde cada extremo y el momento actuante queda por debajo de ella en toda la longitud.
     Acero: <b>${fmt(G.acero.total, 0)} kg</b> (${fmt(G.acero.base, 0)} corridas + ${fmt(G.acero.bastones, 0)} bastones)${ahorro}.${!G.caps.okBase ? ' <b style="color:#b91c1c">El armado corrido no cumple por sí solo los mínimos (As mín / b mín).</b>' : ''}</p>
     <table class="mem"><tr><th>Patrón</th><th>Miembros</th><th>Bastón lecho inferior</th><th>Bastón lecho superior</th><th>Estado</th></tr>${rows}</table>
     ${alzados}`

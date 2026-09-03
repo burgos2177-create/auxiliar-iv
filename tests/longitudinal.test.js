@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import {
   parseRamStations, looksLikeStations, memberProfile, profileAt, exceedZones, developmentLength,
   sectionCapacities, bastonesForLecho, analyzeMember, analyzeGroup, optimizeBase, applyBase, barWeight, uniformDesign,
+  capacityAt, capacityProfile, capacityViolations, mrForAs,
 } from '../src/core/longitudinal.js'
 import { elevationSvg, diagramSvg, elevationsGridSvg } from '../src/core/longitudinalSvg.js'
 import { calcFlexion } from '../src/core/sectionCalculator.js'
@@ -264,5 +265,59 @@ describe('dibujos', () => {
     expect(d).toMatch(/MR− con 1 bastón/)
     expect(d).toMatch(/Mu− 1\.78 @ 0\.00 m/)
     expect(d).toMatch(/Cortante/)
+  })
+})
+
+describe('envolvente de resistencia desarrollada (rampas de Ld)', () => {
+  const caps = sectionCapacities(secc())
+  it('mrForAs reproduce el MRT de calcFlexion', () => {
+    const R = calcFlexion({ fc: 250, fy: 4200, b: 20, h: 30, r: 3, MuTm: 0.001, varNum: 4, varCount: 3, bastonNum: 4, bastonCount: 0 })
+    expect(mrForAs(caps, 3 * 1.27)).toBeCloseTo(R.MRT, 9)
+    expect(mrForAs(caps, 0)).toBe(0)
+  })
+  it('sube linealmente en As a lo largo de Ld desde cada extremo y baja al final', () => {
+    const prof = memberProfile(parabola(caps.MRP * 1.2), 6)
+    const res = bastonesForLecho(prof, caps.inf, 'muP', { caps })
+    const b = res.bars[0], Ld = caps.inf.Ld.Ld / 100
+    const at = (x) => capacityAt(caps, caps.inf, res.bars, x, prof.L)
+    expect(at(b.x0 - 0.01)).toBeCloseTo(caps.MRP, 9)          // antes del bastón: sólo corridas
+    expect(at(b.x0)).toBeCloseTo(caps.MRP, 9)                 // en su extremo aún no aporta
+    expect(at(b.x0 + Ld / 2)).toBeCloseTo(mrForAs(caps, caps.inf.base.AsTotal + 0.5 * 1.27), 9)
+    expect(at(b.x0 + Ld)).toBeCloseTo(caps.inf.withK(1).MRT, 9) // desarrollado
+    expect(at((b.x0 + b.x1) / 2)).toBeCloseTo(caps.inf.withK(1).MRT, 9)
+    expect(at(b.x1 - Ld / 2)).toBeCloseTo(at(b.x0 + Ld / 2), 9) // simétrico
+    expect(at(b.x1)).toBeCloseTo(caps.MRP, 9)
+    const cap = capacityProfile(caps, caps.inf, res.bars, prof)
+    expect(cap[0].x).toBe(0); expect(cap[cap.length - 1].x).toBe(prof.L)
+    expect(cap.every((p, i) => i === 0 || p.x >= cap[i - 1].x)).toBe(true)
+  })
+  it('un bastón anclado en el apoyo se toma desarrollado desde el paño', () => {
+    const P = parseRamStations(T4)
+    const c3 = sectionCapacities(secc({ calSup: '3', cantSup: 2, calBastonSup: '3', calInf: '3', cantInf: 2, calBastonInf: '3' }))
+    const prof = memberProfile(P.members.find((m) => m.id === '1107'), 4)
+    const r = bastonesForLecho(prof, c3.sup, 'muN', { caps: c3 })
+    expect(r.bars[0].ancla).toBe('I')
+    expect(capacityAt(c3, c3.sup, r.bars, 0, 4)).toBeCloseTo(c3.sup.withK(1).MRT, 9)
+  })
+  it('tras colocar (y alargar si hace falta) Mu ≤ MR desarrollado en toda la longitud', () => {
+    const P = parseRamStations(T4)
+    for (const t of [secc(), secc({ calSup: '3', cantSup: 3, calBastonSup: '3', calInf: '3', cantInf: 2, calBastonInf: '3' })]) {
+      const G = analyzeGroup(t, { members: P.members, L: 4 })
+      for (const r of G.results) {
+        if (r.status === 'insuficiente') continue
+        expect(r.inf.capViol).toEqual([])
+        expect(r.sup.capViol).toEqual([])
+        expect(capacityViolations(G.caps, G.caps.inf, r.inf.bars, r.profile, 'muP')).toEqual([])
+      }
+    }
+  })
+  it('el diagrama dibuja la envolvente desarrollada como curva', () => {
+    const P = parseRamStations(T4)
+    const t = secc({ calSup: '3', cantSup: 2, calBastonSup: '3', calInf: '3', cantInf: 2, calBastonInf: '3' })
+    const G = analyzeGroup(t, { members: P.members, L: 4 })
+    const r = G.results.find((x) => x.id === '1107')
+    const d = diagramSvg(r, G.caps)
+    expect(d).toMatch(/envolvente desarrollada \(Ld/)
+    expect(d).toMatch(/stroke-width="2.2"/)
   })
 })

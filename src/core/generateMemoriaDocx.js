@@ -17,7 +17,7 @@ import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { columnDemand, demandCase } from './columnDemand'
 import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
 import { analyzeGroup, unitLabel } from './longitudinal'
-import { elevationSvg } from './longitudinalSvg'
+import { elevationSvg, diagramSvg } from './longitudinalSvg'
 
 // ── palette ──
 const TEAL = '4ECAC4', INK = '0F172A', GREY = '6B7280', SUB = '334155'
@@ -214,7 +214,8 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
       const subtitle = `${p.members.slice(0, 16).map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', ')}${p.members.length > 16 ? ` … (+${p.members.length - 16})` : ''}`
       const svg = elevationSvg(t, p.sample, { scale: 3.2, title, subtitle }).svg
       const img = await prep(await svgToPng(svg).catch(() => null), 560).catch(() => null)
-      if (img) imgs.push({ label: p.label, img })
+      const dimg = p.signature === 'base' ? null : await prep(await svgToPng(diagramSvg(p.sample, G.caps, { width: 820 })).catch(() => null), 520).catch(() => null)
+      if (img) imgs.push({ label: p.label, img, dimg })
     }
     return { G, imgs }
   }))
@@ -285,7 +286,7 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
         run(`${G.nOk} miembro(s) quedan cubiertos y ${G.nBast} requieren bastón sólo en la zona donde el momento rebasa esa resistencia`, { bold: true }),
         run(G.nInsuf ? `; ${G.nInsuf} resultan insuficientes aun con un bastón por varilla` : ''),
         run(G.nShear ? `; ${G.nShear} no cumplen por cortante con la separación de estribos propuesta` : ''),
-        run(`. Los bastones se prolongan al menos máx(d, 12db) = ${fmt(G.caps.inf.ext, 0)} cm más allá del punto teórico de corte y desarrollan Ld = ${fmt(G.caps.inf.Ld.Ld, 0)}/${fmt(G.caps.sup.Ld.Ld, 0)} cm desde el punto de momento máximo (NTC-2017 §5.1 y §6.1.2); los que llegan a un apoyo se anclan en él. `),
+        run(`. Los bastones se prolongan al menos máx(d, 12db) = ${fmt(G.caps.inf.ext, 0)} cm más allá del punto teórico de corte y desarrollan Ld = ${fmt(G.caps.inf.Ld.Ld, 0)}/${fmt(G.caps.sup.Ld.Ld, 0)} cm desde el punto de momento máximo (NTC-2017 §5.1 y §6.1.2); los que llegan a un apoyo se anclan en él. La envolvente de resistencia considera el acero del bastón desarrollado gradualmente a lo largo de Ld desde cada extremo, y se verificó que el momento actuante queda por debajo de ella en toda la longitud del elemento. `),
         run(`Acero: ${fmt(G.acero.total, 0)} kg (${fmt(G.acero.base, 0)} kg corridas + ${fmt(G.acero.bastones, 0)} kg bastones)`),
         ...(G.acero.ahorro != null ? [run(` frente a ${fmt(G.acero.uniforme, 0)} kg del diseño uniforme (${G.uniforme.inf.n}#${G.uniforme.inf.bar.num} / ${G.uniforme.sup.n}#${G.uniforme.sup.bar.num} corridas sin bastones): `), run(`${G.acero.ahorro >= 0 ? 'ahorro' : 'exceso'} de ${fmt(Math.abs(G.acero.ahorro), 0)} kg (${fmt(100 * Math.abs(G.acero.ahorro) / G.acero.uniforme, 0)} %)`, { bold: true, color: G.acero.ahorro > 0 ? OKC : 'B45309' }), run('.')] : [run('.')]),
         ...(!G.caps.okBase ? [run(' El armado corrido no cumple por sí solo los mínimos (As mín / b mín).', { bold: true, color: BADC })] : []),
@@ -298,7 +299,11 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
         [run(p.sample.status === 'insuficiente' ? 'INSUFICIENTE' : p.sample.shearFail ? 'CORTANTE' : p.sample.status === 'baston' ? 'CON BASTÓN' : 'CORRIDAS', { size: 14, bold: true, color: p.sample.status === 'insuficiente' || p.sample.shearFail ? BADC : p.sample.status === 'baston' ? '1D4ED8' : OKC })],
       ])
       trabeBlocks.push(dataTable(pHead, pRows, pCols, { size: 15 }))
-      for (const { label, img } of imgs) {
+      for (const { label, img, dimg } of imgs) {
+        if (dimg) {
+          trabeBlocks.push(para([run(`Diagrama de momento y cortante con la envolvente de resistencia desarrollada — patrón ${label}`, { size: 16, italics: true, color: GREY })], { before: 100, after: 20 }))
+          trabeBlocks.push(imgPara(dimg))
+        }
         trabeBlocks.push(para([run(`Alzado — patrón ${label}`, { size: 16, italics: true, color: GREY })], { before: 100, after: 20 }))
         trabeBlocks.push(imgPara(img))
       }

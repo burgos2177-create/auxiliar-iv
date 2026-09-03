@@ -9,7 +9,7 @@ import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { evaluateBeamEnvelope } from './ramParser'
 import { columnDemand, demandCase } from './columnDemand'
 import { analyzeGroup, unitLabel } from './longitudinal'
-import { elevationSvg } from './longitudinalSvg'
+import { elevationSvg, diagramSvg } from './longitudinalSvg'
 import { interactionSvgString } from './columnsSvg'
 
 
@@ -502,7 +502,8 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
           <td style="color:#2563a8">${esc0(bars(r.inf.bars, t.calBastonInf))}</td><td style="color:#c94f2a">${esc0(bars(r.sup.bars, t.calBastonSup))}</td><td>${est(r)}</td></tr>`).join('')
         const patrones = G.patterns.map((p) => {
           const e = elevationSvg(t, p.sample, { scale: 3.2, title: `${t.nombre} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`, subtitle: `${p.members.slice(0, 20).map((id) => (p.sample.isElement ? `E ${id}` : `M-${id}`)).join(', ')}${p.members.length > 20 ? ` … (+${p.members.length - 20})` : ''}` })
-          return `<div style="margin:10px 0;overflow-x:auto">${e.svg.replace('<svg ', '<svg style="max-width:100%;height:auto" ')}</div>`
+          const d = p.signature === 'base' ? '' : diagramSvg(p.sample, G.caps, { width: 820 }).replace('<svg ', '<svg style="max-width:100%;height:auto" ')
+          return `<div style="margin:10px 0;overflow-x:auto">${d}${e.svg.replace('<svg ', '<svg style="max-width:100%;height:auto" ')}</div>`
         }).join('')
         const ahorro = G.acero.ahorro != null
           ? `Diseño uniforme de referencia (${G.uniforme.inf.n}#${G.uniforme.inf.bar.num} / ${G.uniforme.sup.n}#${G.uniforme.sup.bar.num} corridas sin bastones): ${fmt(G.acero.uniforme, 0)} kg → <b style="color:${G.acero.ahorro > 0 ? '#15803d' : '#92400e'}">${G.acero.ahorro >= 0 ? 'ahorro' : 'exceso'} ${fmt(Math.abs(G.acero.ahorro), 0)} kg (${fmt(100 * Math.abs(G.acero.ahorro) / G.acero.uniforme, 0)} %)</b>.`
@@ -519,7 +520,7 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
             ${!G.caps.okBase ? '<br><b style="color:#dc2626">El armado corrido no cumple por sí solo (As mín / As máx / b mín).</b>' : ''}
           </div>
           <table class="summary"><tr><th>Elemento / miembro</th><th>L (m)</th><th>Mu+</th><th>Mu−</th><th>Vu</th><th>Bastón inf.</th><th>Bastón sup.</th><th>Estado</th></tr>${filas}</table>
-          <div style="font-size:10px;color:#6b7280;margin-top:4px">Bastón: desde donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; posición medida desde el apoyo I; ⟂ = se ancla en ese apoyo.</div>
+          <div style="font-size:10px;color:#6b7280;margin-top:4px">Bastón: desde donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; posición medida desde el apoyo I; ⟂ = se ancla en ese apoyo. En el diagrama la envolvente de resistencia sube en rampa a lo largo de Ld donde empieza el bastón y baja donde termina; el momento actuante queda por debajo en toda la longitud.</div>
           <div style="font-size:14px;font-weight:800;margin:16px 0 6px;color:#0f172a">Patrones de armado (${G.patterns.length})</div>
           ${patrones}`
       }

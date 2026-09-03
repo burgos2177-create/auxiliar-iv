@@ -328,6 +328,62 @@ export function shearCapacity(caps, L, VuTon, s) {
   return { Vr: (R.VcrKg + Vsr) / 1000, Vcr: R.VcrKg / 1000, VaMax: R.VaMax, Suso: R.Suso, SmaxGeom: R.SmaxGeom, Av: R.Av, FR: R.FR, d: R.d, seccionInsuficiente: R.seccionInsuficiente, SminAlert: R.SminAlert }
 }
 
+// ── 4b. Envolvente de resistencia a lo largo del elemento ─────
+/**
+ * MRT para un área de acero cualquiera (misma fórmula que calcFlexion):
+ * MR = FR·As·fy·(d − a/2), a = As·fy/(f''c·b). En t·m.
+ */
+export function mrForAs(caps, As) {
+  if (!(As > 0)) return 0
+  const fcRed = 0.85 * caps.fc
+  const a = (As * caps.fy) / (fcRed * caps.b)
+  return (0.9 * As * caps.fy * (caps.d - a / 2)) / 100000
+}
+
+/**
+ * Resistencia disponible en x para un lecho: las corridas completas (se
+ * suponen ancladas en los extremos) más el bastón según lo desarrollado:
+ * fracción = mín(1, (x−x0)/Ld, (x1−x)/Ld); en el extremo que se ancla en
+ * un apoyo (gancho) la barra se toma desarrollada desde el paño.
+ */
+export function capacityAt(caps, lecho, bars, x, L) {
+  const LdM = lecho.Ld.Ld / 100
+  let As = lecho.base?.AsTotal || 0
+  for (const b of bars) {
+    if (x < b.x0 - 1e-9 || x > b.x1 + 1e-9) continue
+    const fromI = b.ancla?.includes('I') && b.x0 <= 1e-9 ? 1 : (LdM > 0 ? (x - b.x0) / LdM : 1)
+    const fromJ = b.ancla?.includes('J') && b.x1 >= L - 1e-9 ? 1 : (LdM > 0 ? (b.x1 - x) / LdM : 1)
+    const f = Math.max(0, Math.min(1, fromI, fromJ))
+    As += b.k * lecho.bast.area * f
+  }
+  return mrForAs(caps, As)
+}
+
+/**
+ * Envolvente de resistencia muestreada (para dibujar y revisar): estaciones,
+ * extremos de bastón y sus puntos a Ld, más una malla fina.
+ * @returns [{ x, MR }]
+ */
+export function capacityProfile(caps, lecho, bars, profile, step = 0.025) {
+  const L = profile.L
+  const xs = new Set([0, L])
+  for (const st of profile.stations) xs.add(+st.x.toFixed(6))
+  const LdM = lecho.Ld.Ld / 100
+  for (const b of bars) for (const v of [b.x0, b.x1, b.x0 + LdM, b.x1 - LdM]) if (v >= 0 && v <= L) xs.add(+v.toFixed(6))
+  for (let x = 0; x <= L + 1e-9; x += step) xs.add(+Math.min(x, L).toFixed(6))
+  return [...xs].sort((a, b) => a - b).map((x) => ({ x, MR: capacityAt(caps, lecho, bars, x, L) }))
+}
+
+/** Puntos donde Mu(x) > MR(x): [{x, Mu, MR}] */
+export function capacityViolations(caps, lecho, bars, profile, key, tol = 1e-6) {
+  const out = []
+  for (const p of capacityProfile(caps, lecho, bars, profile)) {
+    const Mu = profileAt(profile, key, p.x)
+    if (Mu > p.MR + tol) out.push({ x: p.x, Mu, MR: p.MR })
+  }
+  return out
+}
+
 // ── 5. Bastones de un miembro ─────────────────────────────────
 const round5 = (v, up) => (up ? Math.ceil(v * 20 - 1e-9) / 20 : Math.floor(v * 20 + 1e-9) / 20) // m, múltiplos de 5 cm
 
@@ -339,6 +395,7 @@ const round5 = (v, up) => (up ? Math.ceil(v * 20 - 1e-9) / 20 : Math.floor(v * 2
 export function bastonesForLecho(profile, lecho, key, opts = {}) {
   const L = profile.L
   const minLen = opts.minLen ?? 0.6 // m — mínimo práctico de obra (configurable)
+  const caps = opts.caps || null
   const MR0 = lecho.base?.MRT || 0
   const zones = exceedZones(profile, key, MR0)
   const bars = []
@@ -387,7 +444,52 @@ export function bastonesForLecho(profile, lecho, key, opts = {}) {
       last.ancla = [last.ancla, bar.ancla].filter(Boolean).join('') || null
     } else merged.push({ ...bar, zones: [bar.zone] })
   }
-  return { bars: merged, insuficiente, need, zones, MR0 }
+
+  // ── Revisión contra la envolvente REAL de resistencia ──
+  // El bastón desarrolla su fuerza a lo largo de Ld desde cada extremo; si en
+  // la rampa Mu rebasa lo desarrollado, la barra se alarga (5 cm por vez)
+  // hasta que la envolvente cubra el momento en toda la longitud.
+  let capViol = []
+  if (caps && merged.length && L > 0) {
+    for (let iter = 0; iter < 60; iter++) {
+      capViol = capacityViolations(caps, lecho, merged, profile, key)
+      if (!capViol.length) break
+      let changed = false
+      for (const v of capViol) {
+        // barra más cercana cuyo rango incluye (o casi) el punto: alargar el extremo más próximo
+        let best = null, bestD = Infinity
+        for (const b of merged) {
+          const d = v.x < b.x0 ? b.x0 - v.x : v.x > b.x1 ? v.x - b.x1 : 0
+          const dEnd = Math.min(Math.abs(v.x - b.x0), Math.abs(v.x - b.x1)) + d
+          if (dEnd < bestD) { bestD = dEnd; best = b }
+        }
+        if (!best) continue
+        const toI = Math.abs(v.x - best.x0) <= Math.abs(v.x - best.x1)
+        if (toI && best.x0 > 1e-9) { best.x0 = Math.max(0, +(best.x0 - 0.05).toFixed(2)); changed = true }
+        else if (!toI && best.x1 < L - 1e-9) { best.x1 = Math.min(L, +(best.x1 + 0.05).toFixed(2)); changed = true }
+        else if (best.x0 > 1e-9) { best.x0 = Math.max(0, +(best.x0 - 0.05).toFixed(2)); changed = true }
+        else if (best.x1 < L - 1e-9) { best.x1 = Math.min(L, +(best.x1 + 0.05).toFixed(2)); changed = true }
+        best.len = +(best.x1 - best.x0).toFixed(2)
+        best.ancla = ((best.x0 <= 1e-9 ? 'I' : '') + (best.x1 >= L - 1e-9 ? 'J' : '')) || null
+        best.alargado = true
+      }
+      // re-unir si al alargar se traslaparon
+      merged.sort((a, b) => a.x0 - b.x0)
+      for (let i = merged.length - 2; i >= 0; i--) {
+        const a = merged[i], b = merged[i + 1]
+        if (b.x0 <= a.x1 + 1e-9) {
+          a.x1 = Math.max(a.x1, b.x1); a.len = +(a.x1 - a.x0).toFixed(2)
+          a.k = Math.max(a.k, b.k); a.MR = Math.max(a.MR, b.MR)
+          a.zones = [...(a.zones || []), ...(b.zones || [])]
+          a.ancla = ((a.x0 <= 1e-9 ? 'I' : '') + (a.x1 >= L - 1e-9 ? 'J' : '')) || null
+          merged.splice(i + 1, 1)
+        }
+      }
+      if (!changed) break
+    }
+  }
+  const cap = caps && L > 0 ? capacityProfile(caps, lecho, merged, profile) : null
+  return { bars: merged, insuficiente, need, zones, MR0, cap, capViol }
 }
 
 /**
@@ -437,8 +539,8 @@ export function shearZones(profile, caps, supports = null) {
  */
 export function analyzeMember(member, caps, { L, invertir = false, minLen } = {}) {
   const profile = memberProfile(member, L, invertir)
-  const inf = bastonesForLecho(profile, caps.inf, 'muP', { minLen })
-  const sup = bastonesForLecho(profile, caps.sup, 'muN', { minLen })
+  const inf = bastonesForLecho(profile, caps.inf, 'muP', { minLen, caps })
+  const sup = bastonesForLecho(profile, caps.sup, 'muN', { minLen, caps })
   const supports = member.isElement ? detectSupports(member) : [0, profile.L]
   const shear = shearZones(profile, caps, supports)
   // Corte de barras en zona de tensión (NTC §5.1.4.1 / ACI 12.10.5): en el punto de corte
@@ -591,7 +693,7 @@ export function optimizeBase(t, perfil, { calibres = ['3', '4', '5', '6'], nMax 
     for (const mb of units) {
       const L = mb.Lreport || +(perfil?.Lpor?.[mb.id]) || +perfil.L || 0
       const profile = memberProfile(mb, L, !!perfil.invertir)
-      const res = bastonesForLecho(profile, lecho, lechoKey === 'inf' ? 'muP' : 'muN', { minLen: perfil?.minLen })
+      const res = bastonesForLecho(profile, lecho, lechoKey === 'inf' ? 'muP' : 'muN', { minLen: perfil?.minLen, caps })
       kgBase += L * n * w
       kgBast += res.bars.reduce((s, b) => s + b.k * b.len * w, 0)
       if (res.bars.length) nBast++
