@@ -397,7 +397,7 @@ export default function LongitudinalView() {
                 )}
                 <div dangerouslySetInnerHTML={{ __html: diagramSvg(selected, group.caps, { width: 760 }) }} />
                 <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 8, padding: 6 }}
-                  dangerouslySetInnerHTML={{ __html: elevationSvg(form, selected, { scale: selected.L > 7 ? 3.2 : 4.2, title: `${form.nombre} · ${unitLabel(selected)}${view === 'patrones' ? ` · patrón ${group.patterns.find((p) => p.signature === selected.signature)?.label || ''}` : ''}` }).svg.replace('<svg ', '<svg style="max-width:100%;height:auto" ') }} />
+                  dangerouslySetInnerHTML={{ __html: elevationSvg(form, selected, { scale: selected.L > 7 ? 3.2 : 4.2, title: `${form.nombre} · ${unitLabel(selected)}${view === 'patrones' ? ` · patrón ${group.patterns.find((p) => p.signature === selected.signature)?.label || ''}` : ''}` }).svg.replace('<svg ', selected.L > 7 ? '<svg style="height:auto" ' : '<svg style="max-width:100%;height:auto" ') }} />
                 <div style={{ fontSize: 10, color: 'var(--color-tx3)' }}>
                   Bastón: desde el punto donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; longitudes a múltiplos de 5 cm, medidas desde el apoyo I. Los que llegan a un extremo se anclan en él (gancho). Cortante por claros: cuartos extremos con @{form.sepLcuarto}, centro con @{form.sepRest}; los apoyos interiores (triángulos) se detectan donde el cortante salta y cambia de signo. El alzado va al DXF a escala real junto con las secciones.
                 </div>
