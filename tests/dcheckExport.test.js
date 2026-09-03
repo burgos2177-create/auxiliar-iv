@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { buildDcheck, markFromRatios } from '../src/core/dcheckExport.js'
-import { parseRamEnvelope, evaluateModel } from '../src/core/modelEnvelope.js'
+import { parseRamEnvelope } from '../src/core/ramParser.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const T2 = readFileSync(join(here, 'fixtures', 'T2.txt'), 'utf-8')
@@ -55,20 +55,12 @@ describe('buildDcheck', () => {
     expect(c.mark).toBe('ok')
   })
 
-  it('con el modelo cargado, la demanda es la envolvente global de cada sección', () => {
-    const points = [...parseRamEnvelope(T2).points, ...parseRamEnvelope(C1).points]
-    const assignment = {}
-    for (const p of points) assignment[p.member] = p.axial < -1 ? { name: 'C-1', kind: 'columna' } : { name: 'T-2', kind: 'trabe' }
-    const modelEval = evaluateModel({ points, assignment }, [trabe], [columna])
-    const d = buildDcheck({ projectName: 'Modelo', sections: [trabe], columns: [columna], modelEval })
-    const t = d.sections[0]
-    const evT = modelEval.porSeccion.find((s) => s.nombre === 'T-2').ev
-    expect(+t.ma).toBeCloseTo(evT.globalMuP, 3)
-    expect(+t.man).toBeCloseTo(evT.globalMuN, 3)
-    expect(+t.va).toBeCloseTo(evT.globalVu, 3)
-    expect(t.obs).toMatch(/modelo \(128 miembros\)/)
-    const c = d.sections[1]
-    expect(c.obs).toMatch(/46 ejemplares dentro/)
-    expect(c.mark).toBe('ok')
+  it('con envolvente de sección cargada, la demanda es la envolvente global', () => {
+    const points = parseRamEnvelope(T2).points
+    const t = { ...trabe, envelope: { archivo: 'T2.txt', combo: 'CD', invertir: false, points } }
+    const d = buildDcheck({ projectName: 'Env', sections: [t], columns: [] })
+    expect(+d.sections[0].ma).toBeGreaterThan(0)
+    expect(d.sections[0].obs).toMatch(/envolvente T2.txt \(128 miembros\)/)
+    void C1
   })
 })

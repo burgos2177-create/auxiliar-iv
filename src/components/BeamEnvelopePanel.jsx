@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import useBeamStore from '../store/useBeamStore'
 import { parseRamEnvelope, evaluateBeamEnvelope } from '../core/ramParser'
+import { parseRamStations, looksLikeStations } from '../core/longitudinal'
 
 const TD = { padding: '4px 8px', borderBottom: '1px solid var(--color-border)', whiteSpace: 'nowrap' }
 const TH = { padding: '5px 8px', background: '#1a2040', color: '#fff', fontSize: 10, textAlign: 'left' }
@@ -15,6 +16,7 @@ const fmt = (v, d = 2) => (v === null || v === undefined || !isFinite(v) ? '—'
 export default function BeamEnvelopePanel({ R }) {
   const form = useBeamStore((s) => s.form)
   const setEnvelope = useBeamStore((s) => s.setEnvelope)
+  const setPerfil = useBeamStore((s) => s.setPerfil)
   const setCalc = useBeamStore((s) => s.setCalc)
   const [msg, setMsg] = useState('')
   const fileRef = useRef(null)
@@ -30,7 +32,18 @@ export default function BeamEnvelopePanel({ R }) {
     if (!file) return
     const reader = new FileReader()
     reader.onload = (ev2) => {
-      const parsed = parseRamEnvelope(ev2.target.result)
+      const text = ev2.target.result
+      if (looksLikeStations(text)) {
+        // Reporte por estaciones: sirve para la envolvente y para el análisis longitudinal
+        const P = parseRamStations(text)
+        if (P.members.length) {
+          setEnvelope({ archivo: file.name, combo: P.combo, unidades: P.unidades, invertir: false, points: P.points, fromStations: true })
+          setPerfil({ archivo: file.name, combo: P.combo, unidades: P.unidades, members: P.members, L: form.perfil?.L || +(form.calc?.L) || 0, Lpor: {}, invertir: false, minLen: form.perfil?.minLen ?? 0.6 })
+          setMsg(`Reporte por estaciones: ${P.members.length} miembros. También disponible en la pestaña Longitudinal (bastones a lo largo).`)
+          return
+        }
+      }
+      const parsed = parseRamEnvelope(text)
       if (!parsed.points.length) {
         setMsg(parsed.warnings[0] || 'No se pudieron leer puntos del archivo.')
         return

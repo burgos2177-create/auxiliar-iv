@@ -12,12 +12,12 @@ const MAX_RECENTS = 6
 export const PROJECT_VERSION = 3
 
 /** Empaqueta el estado del proyecto tal como se guarda en el .json */
-export function packProject({ projectName = '', dxfScale = 1, sections = [], columns = [], model = null }) {
-  return { version: PROJECT_VERSION, projectName, dxfScale, sections, columns, model, savedAt: new Date().toISOString() }
+export function packProject({ projectName = '', dxfScale = 1, sections = [], columns = [] }) {
+  return { version: PROJECT_VERSION, projectName, dxfScale, sections, columns, savedAt: new Date().toISOString() }
 }
 
 export function isEmptyProject(p) {
-  return !p || ((p.sections?.length || 0) === 0 && (p.columns?.length || 0) === 0 && !(p.model?.points?.length))
+  return !p || ((p.sections?.length || 0) === 0 && (p.columns?.length || 0) === 0)
 }
 
 export function saveSnapshot(project) {

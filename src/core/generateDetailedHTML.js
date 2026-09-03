@@ -8,6 +8,8 @@ import { CAL_TO_NUM } from './constants'
 import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { evaluateBeamEnvelope } from './ramParser'
 import { columnDemand, demandCase } from './columnDemand'
+import { analyzeGroup } from './longitudinal'
+import { elevationSvg } from './longitudinalSvg'
 import { interactionSvgString } from './columnsSvg'
 
 
@@ -398,6 +400,7 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
   const summaryRows = []
   // Estadísticas de ejemplares (miembros de las envolventes cargadas)
   const envStats = { elementos: 0, total: 0, pasan: 0, sinEnv: 0 }
+  const longStats = { trabes: 0, miembros: 0, ok: 0, insuf: 0 }
 
   let sectionsHTML = ''
   sections.forEach((t, idx) => {
@@ -484,6 +487,44 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
       envStats.sinEnv++
     }
 
+    // ── Análisis longitudinal (bastones a lo largo), si la trabe tiene perfil por estaciones ──
+    if (t.perfil?.members?.length) {
+      let G = null
+      try { G = analyzeGroup(t, t.perfil) } catch { /* sin L o datos incompletos */ }
+      if (G) {
+        longStats.trabes++; longStats.miembros += G.n; longStats.ok += G.nOk + G.nBast; longStats.insuf += G.nInsuf + G.nShear
+        const bars = (arr, cal) => arr.length ? arr.map((b) => `${b.k}#${cal} L=${fmt(b.len, 2)} @${fmt(b.x0, 2)}${b.ancla ? ` ⟂${b.ancla}` : ''}`).join(' · ') : '—'
+        const est = (r) => r.status === 'insuficiente' ? '<span style="color:#dc2626;font-weight:700">✗ insuficiente</span>'
+          : r.shearFail ? '<span style="color:#dc2626;font-weight:700">✗ cortante</span>'
+            : r.status === 'baston' ? '<span style="color:#1d4ed8;font-weight:700">bastón</span>' : '<span style="color:#15803d;font-weight:700">✓ corridas</span>'
+        const filas = G.results.map((r) => `<tr>
+          <td>M-${esc0(r.id)}</td><td>${fmt(r.L, 2)}</td><td>${fmt(r.profile.muPmax, 2)}</td><td>${fmt(r.profile.muNmax, 2)}</td><td>${fmt(r.profile.vuMax, 2)}</td>
+          <td style="color:#2563a8">${esc0(bars(r.inf.bars, t.calBastonInf))}</td><td style="color:#c94f2a">${esc0(bars(r.sup.bars, t.calBastonSup))}</td><td>${est(r)}</td></tr>`).join('')
+        const patrones = G.patterns.map((p) => {
+          const e = elevationSvg(t, p.sample, { scale: 3.2, title: `${t.nombre} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`, subtitle: `M-${p.members.slice(0, 20).join(', M-')}${p.members.length > 20 ? ` … (+${p.members.length - 20})` : ''}` })
+          return `<div style="margin:10px 0;overflow-x:auto">${e.svg.replace('<svg ', '<svg style="max-width:100%;height:auto" ')}</div>`
+        }).join('')
+        const ahorro = G.acero.ahorro != null
+          ? `Diseño uniforme de referencia (${G.uniforme.inf.n}#${G.uniforme.inf.bar.num} / ${G.uniforme.sup.n}#${G.uniforme.sup.bar.num} corridas sin bastones): ${fmt(G.acero.uniforme, 0)} kg → <b style="color:${G.acero.ahorro > 0 ? '#15803d' : '#92400e'}">${G.acero.ahorro >= 0 ? 'ahorro' : 'exceso'} ${fmt(Math.abs(G.acero.ahorro), 0)} kg (${fmt(100 * Math.abs(G.acero.ahorro) / G.acero.uniforme, 0)} %)</b>.`
+          : ''
+        sectionsHTML += `
+          <div style="font-size:16px;font-weight:800;color:#0f172a;border-bottom:2px solid #7c3aed;padding-bottom:8px;margin:24px 0 14px;text-transform:uppercase">
+            Análisis longitudinal — bastones donde hacen falta
+          </div>
+          <div class="nota" style="background:#f5f3ff;border-color:#ddd6fe;color:#3b0764">
+            ${G.n} miembros del reporte «${esc0(t.perfil.archivo || '')}»${t.perfil.combo ? ` (${esc0(t.perfil.combo)})` : ''}:
+            <b>${G.nOk}</b> pasan con las corridas, <b>${G.nBast}</b> requieren bastón${G.nInsuf ? `, <b style="color:#dc2626">${G.nInsuf} insuficientes</b>` : ''}${G.nShear ? `, <b style="color:#dc2626">${G.nShear} fallan por cortante</b>` : ''}.
+            MR+ corridas ${fmt(G.caps.MRP, 2)} · MR− corridas ${fmt(G.caps.MRN, 2)} t·m · Ld bastón ${fmt(G.caps.inf.Ld.Ld, 0)}/${fmt(G.caps.sup.Ld.Ld, 0)} cm · prolongación ≥ máx(d, 12db) = ${fmt(G.caps.inf.ext, 0)} cm.
+            Acero: <b>${fmt(G.acero.total, 0)} kg</b> (${fmt(G.acero.base, 0)} corridas + ${fmt(G.acero.bastones, 0)} bastones). ${ahorro}
+            ${!G.caps.okBase ? '<br><b style="color:#dc2626">El armado corrido no cumple por sí solo (As mín / As máx / b mín).</b>' : ''}
+          </div>
+          <table class="summary"><tr><th>Miembro</th><th>L (m)</th><th>Mu+</th><th>Mu−</th><th>Vu</th><th>Bastón inf.</th><th>Bastón sup.</th><th>Estado</th></tr>${filas}</table>
+          <div style="font-size:10px;color:#6b7280;margin-top:4px">Bastón: desde donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; posición medida desde el apoyo I; ⟂ = se ancla en ese apoyo.</div>
+          <div style="font-size:14px;font-weight:800;margin:16px 0 6px;color:#0f172a">Patrones de armado (${G.patterns.length})</div>
+          ${patrones}`
+      }
+    }
+
     // Footer per section
     sectionsHTML += `<div style="border-top:2px solid #4ecac4;padding-top:10px;margin-top:24px;font-size:10px;color:#9ca3af;text-align:right">IV Ingenierías · Auxiliar IV v0.2 NTC-2023 · (q conforme NTC-2017, ver nota)</div>`
     sectionsHTML += '</div>'
@@ -523,7 +564,7 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
   const elemOk = conDatos.length > 0 && conDatos.every((r) => r.ok)
   const sinDatos = elemRows.length - conDatos.length
   const ejemplaresOk = envStats.total > 0 && envStats.pasan === envStats.total
-  const todoOk = elemOk && sinDatos === 0 && (envStats.total === 0 || ejemplaresOk)
+  const todoOk = elemOk && sinDatos === 0 && (envStats.total === 0 || ejemplaresOk) && longStats.insuf === 0
 
   let leyenda
   if (todoOk && envStats.total > 0) {
@@ -538,6 +579,9 @@ export function generateDetailedReport(sections, projectName = '', columns = [])
     if (envStats.total > 0 && !ejemplaresOk) partes.push(`${envStats.total - envStats.pasan} de ${envStats.total} ejemplares no quedan cubiertos`)
     if (sinDatos > 0) partes.push(`${sinDatos} sin datos de cálculo o sin demanda capturada`)
     leyenda = `⚠ Revisar diseño: ${partes.join(' · ')}.`
+  }
+  if (longStats.trabes > 0) {
+    leyenda += ` Análisis longitudinal: ${longStats.miembros} miembros de ${longStats.trabes} trabe(s), ${longStats.ok} cubiertos con corridas o bastones${longStats.insuf ? `, ${longStats.insuf} insuficientes` : ''}.`
   }
   const leyendaHTML = `<div class="vfinal ${todoOk ? 'vfinal-ok' : 'vfinal-fail'}" style="margin-top:20px">${leyenda}</div>`
 

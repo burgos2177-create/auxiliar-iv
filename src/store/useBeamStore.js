@@ -42,6 +42,8 @@ const defaultSection = (nombre = '') => ({
   calc: defaultCalc(),
   // Envolvente de elementos mecánicos (reporte RAM) — opcional
   envelope: null, // { archivo, combo, invertir, points:[...] }
+  // Perfil por estaciones (reporte RAM "Envolvente de esfuerzos") — análisis longitudinal
+  perfil: null,   // { archivo, combo, members:[{id, stations}], L, Lpor:{id:L}, invertir, minLen }
 })
 
 // Cada bastón se amarra a una varilla del lecho: nunca puede haber más
@@ -148,13 +150,24 @@ const useBeamStore = create((set, get) => ({
     return { form: newForm }
   }),
 
-  // Envolvente de cualquier sección por índice (la usa la pestaña Modelo)
+  // Envolvente de cualquier sección por índice
   setEnvelopeAt: (idx, env) => set((s) => {
     if (idx < 0 || idx >= s.sections.length) return {}
     const updated = [...s.sections]
     updated[idx] = { ...updated[idx], envelope: env }
     const form = idx === s.selectedIdx ? { ...s.form, envelope: env } : s.form
     return { sections: updated, form }
+  }),
+
+  // Perfil por estaciones de la sección activa (análisis longitudinal)
+  setPerfil: (perfil) => set((s) => {
+    const newForm = { ...s.form, perfil }
+    if (s.selectedIdx >= 0 && s.selectedIdx < s.sections.length) {
+      const updated = [...s.sections]
+      updated[s.selectedIdx] = { ...newForm }
+      return { form: newForm, sections: updated }
+    }
+    return { form: newForm }
   }),
 
   // Write calculator results back to the detailer fields

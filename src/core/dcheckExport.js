@@ -13,7 +13,6 @@ import { computeSectionCapacities } from './sectionResults'
 import { evaluateBeamEnvelope } from './ramParser'
 import { analyzeColumn } from './columnCalculator'
 import { columnDemand, demandCase } from './columnDemand'
-import { normName } from './constants'
 
 const num = (v, d = 3) => (v === null || v === undefined || !isFinite(v) || v === 0 ? '' : String(Number(v.toFixed(d))))
 
@@ -25,13 +24,7 @@ export function markFromRatios(ratios) {
   return worst <= 0.9 ? 'ok' : worst <= 1 ? 'warn' : 'bad'
 }
 
-/**
- * @param modelEval  resultado de evaluateModel (opcional) — manda sobre la envolvente por sección
- */
-export function buildDcheck({ projectName = '', reviso = '', sections = [], columns = [], modelEval = null } = {}) {
-  const porNombre = new Map()
-  for (const s of modelEval?.porSeccion || []) if (s.ev) porNombre.set(normName(s.nombre), s)
-
+export function buildDcheck({ projectName = '', reviso = '', sections = [], columns = [] } = {}) {
   const out = []
 
   for (const t of sections) {
@@ -40,14 +33,10 @@ export function buildDcheck({ projectName = '', reviso = '', sections = [], colu
     const MRN = R.resN?.MRT || 0
     const VR = R.resC?.Vr || 0
 
-    // Demanda: modelo → envolvente de la sección → punto capturado
+    // Demanda: envolvente de la sección (reporte RAM) → punto capturado
     let MuP = R.MuP, MuN = R.MuN, Vu = R.VuTon
     let fuente = 'punto capturado'
-    const fromModel = porNombre.get(normName(t.nombre))
-    if (fromModel?.ev) {
-      MuP = fromModel.ev.globalMuP; MuN = fromModel.ev.globalMuN; Vu = fromModel.ev.globalVu
-      fuente = `modelo (${fromModel.ev.total} miembros)`
-    } else if (t.envelope?.points?.length) {
+    if (t.envelope?.points?.length) {
       const ev = evaluateBeamEnvelope(t.envelope.points, R, !!t.envelope.invertir)
       MuP = ev.globalMuP; MuN = ev.globalMuN; Vu = ev.globalVu
       fuente = `envolvente ${t.envelope.archivo || ''} (${ev.total} miembros)`
@@ -79,12 +68,7 @@ export function buildDcheck({ projectName = '', reviso = '', sections = [], colu
         obs: 'Columna con datos incompletos', mark: null, manual: false, geo: false, imgA: null, imgB: null, imgC: null, imgD: null })
       continue
     }
-    // Con el modelo cargado, el crítico de la envolvente del modelo; si no, columnDemand
-    let D = columnDemand(c, an)
-    const fromModel = porNombre.get(normName(c.nombre))
-    if (fromModel?.ev) {
-      D = { ...D, fuente: 'envolvente', env: fromModel.ev, ok: fromModel.ev.allOk, evaluado: true }
-    }
+    const D = columnDemand(c, an)
     const caso = demandCase(D)
     const ratios = [
       caso.cx.MR > 0 && caso.Mux > 0 ? caso.Mux / caso.cx.MR : null,

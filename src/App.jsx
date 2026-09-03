@@ -6,11 +6,10 @@ import MomentScale from './components/MomentScale'
 import CalculatorView from './components/CalculatorView'
 import BDGlobalView from './components/BDGlobalView'
 import ColumnsView from './components/ColumnsView'
-import ModelView from './components/ModelView'
+import LongitudinalView from './components/LongitudinalView'
 import MemoriaDialog from './components/MemoriaDialog'
 import useBeamStore from './store/useBeamStore'
 import useColumnStore from './store/useColumnStore'
-import useModelStore from './store/useModelStore'
 import { svgToDxf } from './core/svgToDxf'
 import { columnsGridSvg } from './core/columnsSvg'
 import { generateReport } from './core/generateReport'
@@ -18,7 +17,8 @@ import { generateDetailedReport } from './core/generateDetailedHTML'
 import { initGlobalDB, getDB, getStats, onDBChange } from './core/globalDB'
 import { packProject, saveSnapshot, loadSnapshot, clearSnapshot, pushRecent, listRecents, timeAgo, debounce, isEmptyProject } from './core/autosave'
 import { buildDcheck } from './core/dcheckExport'
-import { evaluateModel } from './core/modelEnvelope'
+import { analyzeGroup } from './core/longitudinal'
+import { elevationsGridSvg } from './core/longitudinalSvg'
 
 function download(content, filename, mime = 'text/plain') {
   const blob = new Blob([content], { type: mime })
@@ -41,9 +41,6 @@ export default function App() {
   const calcAlert = useBeamStore((s) => s.calcAlert)
   const columns = useColumnStore((s) => s.columns)
   const loadColumns = useColumnStore((s) => s.loadColumns)
-  const model = useModelStore((s) => s.model)
-  const restoreModel = useModelStore((s) => s.restore)
-  const applyModel = useModelStore((s) => s.applyToSections)
   const [dxfScale, setDxfScale] = useState(1)
   const [projectName, setProjectName] = useState('')
   const [mainTab, setMainTab] = useState('detalle')
@@ -69,10 +66,9 @@ export default function App() {
   const applyProject = useCallback((data) => {
     loadProject(Array.isArray(data.sections) ? data.sections : [])
     loadColumns(Array.isArray(data.columns) ? data.columns : [])
-    restoreModel(data.model || null)
     setProjectName(data.projectName !== undefined ? data.projectName : '')
     if (data.dxfScale !== undefined) setDxfScale(data.dxfScale)
-  }, [loadProject, loadColumns, restoreModel])
+  }, [loadProject, loadColumns])
 
   // Recuperar la sesión anterior al arrancar
   useEffect(() => {
@@ -81,18 +77,14 @@ export default function App() {
     const snap = loadSnapshot()
     if (!snap) return
     applyProject(snap)
-    showToast(`Sesión recuperada · ${snap.sections?.length || 0} trabe(s), ${snap.columns?.length || 0} columna(s)${snap.model?.points?.length ? ', modelo cargado' : ''} · ${timeAgo(snap.savedAt)}`)
+    showToast(`Sesión recuperada · ${snap.sections?.length || 0} trabe(s), ${snap.columns?.length || 0} columna(s) · ${timeAgo(snap.savedAt)}`)
   }, [applyProject, showToast])
 
   // Autoguardado en cada cambio
   useEffect(() => {
     if (!restored.current) return
-    autosave(packProject({ projectName, dxfScale, sections, columns, model }))
-  }, [projectName, dxfScale, sections, columns, model])
-
-  // Si cambian los nombres de trabes/columnas, re-repartir las envolventes del modelo
-  const namesKey = useMemo(() => [...sections.map((s) => 'T:' + s.nombre), ...columns.map((c) => 'C:' + c.nombre)].join('|'), [sections, columns])
-  useEffect(() => { if (model.points.length) applyModel() }, [namesKey]) // eslint-disable-line
+    autosave(packProject({ projectName, dxfScale, sections, columns }))
+  }, [projectName, dxfScale, sections, columns])
 
   // SVG de export: vigas (canvas en vivo) + columnas (grid generado),
   // apiladas en un solo documento a 14 px/cm. Con forDxf=true el ancho/alto
@@ -112,8 +104,22 @@ export default function App() {
       beamsInner = str.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
     }
 
-    const W = Math.max(wB, grid.W)
-    const H = hB + grid.H
+    // Alzados longitudinales (un dibujo por patrón de bastones) de las trabes con perfil cargado
+    let elevInner = '', wE = 0, hE = 0
+    for (const t of sections) {
+      if (!t.perfil?.members?.length) continue
+      try {
+        const g = analyzeGroup(t, t.perfil)
+        if (!g.results.some((r) => r.L > 0)) continue
+        const e = elevationsGridSvg(t, g, 14)
+        elevInner += `<g transform="translate(0,${hE.toFixed(1)})">${e.inner}</g>`
+        hE += e.H + 40
+        wE = Math.max(wE, e.W)
+      } catch (err) { console.error('alzado', t.nombre, err) }
+    }
+
+    const W = Math.max(wB, grid.W, wE)
+    const H = hB + grid.H + hE
     const wCm = (W / 14).toFixed(4)
     const hCm = (H / 14).toFixed(4)
     const size = forDxf ? `width="${wCm}cm" height="${hCm}cm"` : `width="${W}" height="${H}"`
@@ -121,8 +127,9 @@ export default function App() {
       `data-real-width-cm="${wCm}" data-real-height-cm="${hCm}" style="font-family:'DM Mono',monospace">` +
       beamsInner +
       (grid.inner ? `<g transform="translate(0,${hB})">${grid.inner}</g>` : '') +
+      (elevInner ? `<g transform="translate(0,${(hB + grid.H).toFixed(1)})">${elevInner}</g>` : '') +
       `</svg>`
-  }, [sections.length, columns])
+  }, [sections, columns])
 
   const fileName = projectName.trim()
     ? `secciones-${projectName.trim().replace(/\s+/g, '-')}`
@@ -142,11 +149,11 @@ export default function App() {
   }, [getSvgString, dxfScale, fileName])
 
   const handleSave = useCallback(() => {
-    const data = packProject({ projectName, dxfScale, sections, columns, model })
+    const data = packProject({ projectName, dxfScale, sections, columns })
     download(JSON.stringify(data, null, 2), `${fileName}.json`, 'application/json')
     pushRecent(data)
     setRecents(listRecents())
-  }, [projectName, dxfScale, sections, columns, model, fileName])
+  }, [projectName, dxfScale, sections, columns, fileName])
 
   const handleVerifyResumido = useCallback(() => {
     if (sections.length === 0 && columns.length === 0) return
@@ -160,14 +167,13 @@ export default function App() {
   }, [sections, columns, projectName])
 
   // Double Check prellenado (nombres, resistencias y demandas); sólo faltan las capturas
-  const handleExportDcheck = useCallback((modelEval = null) => {
+  const handleExportDcheck = useCallback(() => {
     if (sections.length === 0 && columns.length === 0) return
-    const evalM = modelEval || (model.points.length ? evaluateModel(model, sections, columns) : null)
-    const data = buildDcheck({ projectName, sections, columns, modelEval: evalM })
+    const data = buildDcheck({ projectName, sections, columns })
     const stamp = (projectName.trim() || 'proyecto').replace(/\s+/g, '_')
     download(JSON.stringify(data), `DoubleCheck_${stamp}.dcheck`, 'application/json')
     showToast(`Double Check exportado · ${data.sections.length} elemento(s) prellenados; falta añadir las capturas`)
-  }, [sections, columns, projectName, model, showToast])
+  }, [sections, columns, projectName, showToast])
 
   const handleOpen = useCallback(() => {
     fileInputRef.current?.click()
@@ -204,13 +210,13 @@ export default function App() {
   }, [applyProject, showToast])
 
   const handleNew = useCallback(() => {
-    const current = packProject({ projectName, dxfScale, sections, columns, model })
+    const current = packProject({ projectName, dxfScale, sections, columns })
     if (!isEmptyProject(current) && !confirm('¿Empezar un proyecto nuevo? Lo que hay ahora queda en "Recientes" (y en tu último .json guardado).')) return
     if (!isEmptyProject(current)) { pushRecent(current); setRecents(listRecents()) }
-    applyProject({ sections: [], columns: [], model: null, projectName: '', dxfScale: 1 })
+    applyProject({ sections: [], columns: [], projectName: '', dxfScale: 1 })
     clearSnapshot()
     setMainTab('detalle')
-  }, [projectName, dxfScale, sections, columns, model, applyProject])
+  }, [projectName, dxfScale, sections, columns, applyProject])
 
   const tabBtn = (id, label, badge) => (
     <button onClick={() => setMainTab(id)}
@@ -234,12 +240,16 @@ export default function App() {
     }}>{n}</span>
   )
 
-  const modelMembers = useMemo(() => new Set(model.points.map((p) => p.member)).size, [model.points])
-  const modelUnassigned = useMemo(() => {
-    if (!model.points.length) return 0
-    const ev = evaluateModel(model, sections, columns)
-    return ev.sinAsignar.length + ev.huerfanos.length
-  }, [model, sections, columns])
+  // Trabes con perfil por estaciones cargado (pestaña Longitudinal)
+  const longStats = useMemo(() => {
+    let n = 0, bad = 0
+    for (const t of sections) {
+      if (!t.perfil?.members?.length) continue
+      n++
+      try { const g = analyzeGroup(t, t.perfil); if (!g.allOk || !g.caps.okBase) bad++ } catch { bad++ }
+    }
+    return { n, bad }
+  }, [sections])
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'var(--color-bg)' }}>
@@ -258,7 +268,7 @@ export default function App() {
         onSave={handleSave} onOpen={handleOpen} onNew={handleNew}
         recents={recents} onOpenRecent={handleOpenRecent}
         onVerifyResumido={handleVerifyResumido} onVerifyDetallado={handleVerifyDetallado}
-        onMemoria={() => setMemoriaOpen(true)} onExportDcheck={() => handleExportDcheck(null)}
+        onMemoria={() => setMemoriaOpen(true)} onExportDcheck={handleExportDcheck}
         dxfScale={dxfScale} setDxfScale={setDxfScale}
         projectName={projectName} setProjectName={setProjectName}
       />
@@ -278,11 +288,11 @@ export default function App() {
           }} />
         ))}
         {tabBtn('columnas', 'Columnas', columns.length > 0 && pill(columns.length))}
-        {tabBtn('modelo', 'Modelo', modelMembers > 0 && (
+        {tabBtn('longitudinal', 'Longitudinal', longStats.n > 0 && (
           <>
-            {pill(modelMembers)}
-            {modelUnassigned > 0 && (
-              <span title={`${modelUnassigned} miembro(s) sin asignar`} style={{
+            {pill(longStats.n)}
+            {longStats.bad > 0 && (
+              <span title={`${longStats.bad} trabe(s) con miembros insuficientes o armado corrido que no cumple`} style={{
                 position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: '50%',
                 background: '#ef4444', border: '1.5px solid var(--color-bg)',
               }} />
@@ -302,8 +312,8 @@ export default function App() {
       <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'columnas' ? 'flex' : 'none', flexDirection: 'column' }}>
         <ColumnsView />
       </div>
-      <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'modelo' ? 'flex' : 'none', flexDirection: 'column' }}>
-        <ModelView onExportDcheck={handleExportDcheck} />
+      <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'longitudinal' ? 'flex' : 'none', flexDirection: 'column' }}>
+        <LongitudinalView />
       </div>
       <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'bdglobal' ? 'flex' : 'none', flexDirection: 'column' }}>
         <BDGlobalView />

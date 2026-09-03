@@ -18,7 +18,7 @@ describe('autosave', () => {
   const sec = { nombre: 'T-1', ancho: 20, peralte: 30 }
 
   it('packProject etiqueta versión y fecha', () => {
-    const p = packProject({ projectName: 'X', dxfScale: 10, sections: [sec], columns: [], model: null })
+    const p = packProject({ projectName: 'X', dxfScale: 10, sections: [sec], columns: [] })
     expect(p.version).toBe(PROJECT_VERSION)
     expect(p.projectName).toBe('X')
     expect(Date.parse(p.savedAt)).toBeGreaterThan(0)
@@ -35,9 +35,9 @@ describe('autosave', () => {
     expect(loadSnapshot()).toBeNull()
   })
 
-  it('isEmptyProject considera el modelo cargado como contenido', () => {
-    expect(isEmptyProject({ sections: [], columns: [], model: { points: [{}] } })).toBe(false)
-    expect(isEmptyProject({ sections: [], columns: [], model: null })).toBe(true)
+  it('isEmptyProject', () => {
+    expect(isEmptyProject({ sections: [{}], columns: [] })).toBe(false)
+    expect(isEmptyProject({ sections: [], columns: [] })).toBe(true)
   })
 
   it('recientes: sin duplicados por nombre, el más nuevo primero, máximo 6', () => {

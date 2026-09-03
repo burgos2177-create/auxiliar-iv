@@ -5,6 +5,7 @@ import { calcFlexion, calcCortante } from './sectionCalculator'
 import { analyzeColumn, calcEstribos, barGrid, bdLookup } from './columnCalculator'
 import { evaluateBeamEnvelope } from './ramParser'
 import { columnDemand, demandCase } from './columnDemand'
+import { analyzeGroup } from './longitudinal'
 
 
 // ── Colors ──────────────────────────────────────────────────
@@ -654,6 +655,25 @@ export function generateReport(sections, projectName = '', columns = []) {
       if (!ev.allOk) hasWarnings = true
       envStats.elementos++; envStats.total += ev.total; envStats.pasan += ev.passing
       envBlocks.push({ nombre: t.nombre || 'Trabe', ev })
+    }
+
+    // ── Análisis longitudinal (bastones a lo largo), si tiene perfil por estaciones ──
+    if (t.perfil?.members?.length) {
+      let G = null
+      try { G = analyzeGroup(t, t.perfil) } catch { /* sin datos */ }
+      if (G) {
+        const bad = G.nInsuf + G.nShear > 0 || !G.caps.okBase
+        doc.setFontSize(6.5)
+        setColor(doc, bad ? COL.warn : COL.ok)
+        const ah = G.acero.ahorro != null ? ` | ${G.acero.ahorro >= 0 ? 'ahorro' : 'exceso'} ${Math.abs(G.acero.ahorro).toFixed(0)} kg vs uniforme` : ''
+        doc.text(
+          `Longitudinal: ${G.n} miembros - ${G.nOk} con corridas, ${G.nBast} con baston` +
+          (G.nInsuf ? `, ${G.nInsuf} insuficientes` : '') + (G.nShear ? `, ${G.nShear} cortante` : '') +
+          ` | acero ${G.acero.total.toFixed(0)} kg${ah}` + (!G.caps.okBase ? ' | corridas no cumplen As min/b min' : ''),
+          tblX, cardY + cardH - 9.5,
+        )
+        if (bad) hasWarnings = true
+      }
     }
 
     y = cardY + cardH + 5

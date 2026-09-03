@@ -16,6 +16,8 @@ import { svgToPng, normalizeMeta } from './generateMemoria'
 import { analyzeColumn, calcEstribos, excentricidad } from './columnCalculator'
 import { columnDemand, demandCase } from './columnDemand'
 import { columnSectionSvgString, interactionSvgString } from './columnsSvg'
+import { analyzeGroup } from './longitudinal'
+import { elevationSvg } from './longitudinalSvg'
 
 // ── palette ──
 const TEAL = '4ECAC4', INK = '0F172A', GREY = '6B7280', SUB = '334155'
@@ -200,6 +202,23 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
     return (mom || cort) ? { mom, cort } : null
   }))
 
+  // ── Análisis longitudinal por trabe (bastones a lo largo): resumen + alzado por patrón ──
+  const longBlocks = await Promise.all(computed.map(async ({ t }) => {
+    if (!t.perfil?.members?.length) return null
+    let G = null
+    try { G = analyzeGroup(t, t.perfil) } catch { return null }
+    if (!G || !G.results.some((r) => r.L > 0)) return null
+    const imgs = []
+    for (const p of G.patterns) {
+      const title = `${t.nombre || 'Trabe'} · patrón ${p.label} (${p.members.length} miembro${p.members.length !== 1 ? 's' : ''})`
+      const subtitle = `M-${p.members.slice(0, 16).join(', M-')}${p.members.length > 16 ? ` … (+${p.members.length - 16})` : ''}`
+      const svg = elevationSvg(t, p.sample, { scale: 3.2, title, subtitle }).svg
+      const img = await prep(await svgToPng(svg).catch(() => null), 560).catch(() => null)
+      if (img) imgs.push({ label: p.label, img })
+    }
+    return { G, imgs }
+  }))
+
   // ── Descriptive sentence per trabe ──
   const trabeFrase = (t, R) => {
     const arm = (res, n, cal) => res
@@ -254,6 +273,37 @@ export async function generateMemoriaDocx({ sections = [], columns = [], meta = 
       // "Detallar todas" desactivado → resumen compacto para no-gobernantes
       trabeBlocks.push(dataTable(COMPACT_HEAD, compactRows(R), COMPACT_COLS))
     }
+    // Análisis longitudinal: dónde y en qué miembros van los bastones
+    const LB = longBlocks[i]
+    if (LB) {
+      const { G, imgs } = LB
+      const bars = (arr, cal) => arr.length ? arr.map((b) => `${b.k}#${cal} L=${fmt(b.len)} m a ${fmt(b.x0)} m del apoyo I${b.ancla ? ` (anclar en ${b.ancla})` : ''}`).join('; ') : 'sin bastón'
+      trabeBlocks.push(para([run('Análisis longitudinal — bastones donde hacen falta', { bold: true, size: 21, color: '1F2937' })], { before: 140, after: 60 }))
+      trabeBlocks.push(para([
+        run(`Se revisaron los ${G.n} miembros de este tipo de trabe con la envolvente por estaciones del modelo${t.perfil.combo ? ` (${t.perfil.combo})` : ''}. `),
+        run(`Con el armado corrido (MR+ = ${fmt(G.caps.MRP)} t·m, MR− = ${fmt(G.caps.MRN)} t·m) `),
+        run(`${G.nOk} miembro(s) quedan cubiertos y ${G.nBast} requieren bastón sólo en la zona donde el momento rebasa esa resistencia`, { bold: true }),
+        run(G.nInsuf ? `; ${G.nInsuf} resultan insuficientes aun con un bastón por varilla` : ''),
+        run(G.nShear ? `; ${G.nShear} no cumplen por cortante con la separación de estribos propuesta` : ''),
+        run(`. Los bastones se prolongan al menos máx(d, 12db) = ${fmt(G.caps.inf.ext, 0)} cm más allá del punto teórico de corte y desarrollan Ld = ${fmt(G.caps.inf.Ld.Ld, 0)}/${fmt(G.caps.sup.Ld.Ld, 0)} cm desde el punto de momento máximo (NTC-2017 §5.1 y §6.1.2); los que llegan a un apoyo se anclan en él. `),
+        run(`Acero: ${fmt(G.acero.total, 0)} kg (${fmt(G.acero.base, 0)} kg corridas + ${fmt(G.acero.bastones, 0)} kg bastones)`),
+        ...(G.acero.ahorro != null ? [run(` frente a ${fmt(G.acero.uniforme, 0)} kg del diseño uniforme (${G.uniforme.inf.n}#${G.uniforme.inf.bar.num} / ${G.uniforme.sup.n}#${G.uniforme.sup.bar.num} corridas sin bastones): `), run(`${G.acero.ahorro >= 0 ? 'ahorro' : 'exceso'} de ${fmt(Math.abs(G.acero.ahorro), 0)} kg (${fmt(100 * Math.abs(G.acero.ahorro) / G.acero.uniforme, 0)} %)`, { bold: true, color: G.acero.ahorro > 0 ? OKC : 'B45309' }), run('.')] : [run('.')]),
+        ...(!G.caps.okBase ? [run(' El armado corrido no cumple por sí solo los mínimos (As mín / b mín).', { bold: true, color: BADC })] : []),
+      ], { align: AlignmentType.JUSTIFIED }))
+      const pHead = ['Patrón', 'Miembros', 'Bastón lecho inferior', 'Bastón lecho superior', 'Estado']
+      const pCols = [800, 2400, 2600, 2600, 1239]
+      const pRows = G.patterns.map((p) => [
+        p.label, `${p.members.length}: M-${p.members.slice(0, 10).join(', ')}${p.members.length > 10 ? '…' : ''}`,
+        bars(p.sample.inf.bars, t.calBastonInf), bars(p.sample.sup.bars, t.calBastonSup),
+        [run(p.sample.status === 'insuficiente' ? 'INSUFICIENTE' : p.sample.shearFail ? 'CORTANTE' : p.sample.status === 'baston' ? 'CON BASTÓN' : 'CORRIDAS', { size: 14, bold: true, color: p.sample.status === 'insuficiente' || p.sample.shearFail ? BADC : p.sample.status === 'baston' ? '1D4ED8' : OKC })],
+      ])
+      trabeBlocks.push(dataTable(pHead, pRows, pCols, { size: 15 }))
+      for (const { label, img } of imgs) {
+        trabeBlocks.push(para([run(`Alzado — patrón ${label}`, { size: 16, italics: true, color: GREY })], { before: 100, after: 20 }))
+        trabeBlocks.push(imgPara(img))
+      }
+    }
+
     // Imágenes del modelo estructural para esta viga (momento y cortante)
     const mi = modelImgs[i]
     if (mi && (mi.mom || mi.cort)) {
