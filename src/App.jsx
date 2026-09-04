@@ -18,7 +18,6 @@ import { initGlobalDB, getDB, getStats, onDBChange } from './core/globalDB'
 import { packProject, saveSnapshot, loadSnapshot, clearSnapshot, pushRecent, listRecents, timeAgo, debounce, isEmptyProject } from './core/autosave'
 import { buildDcheck } from './core/dcheckExport'
 import { analyzeGroup } from './core/longitudinal'
-import { elevationsGridSvg } from './core/longitudinalSvg'
 
 function download(content, filename, mime = 'text/plain') {
   const blob = new Blob([content], { type: mime })
@@ -104,22 +103,9 @@ export default function App() {
       beamsInner = str.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
     }
 
-    // Alzados longitudinales (un dibujo por patrón de bastones) de las trabes con perfil cargado
-    let elevInner = '', wE = 0, hE = 0
-    for (const t of sections) {
-      if (!t.perfil?.members?.length) continue
-      try {
-        const g = analyzeGroup(t, t.perfil)
-        if (!g.results.some((r) => r.L > 0)) continue
-        const e = elevationsGridSvg(t, g, 14)
-        elevInner += `<g transform="translate(0,${hE.toFixed(1)})">${e.inner}</g>`
-        hE += e.H + 40
-        wE = Math.max(wE, e.W)
-      } catch (err) { console.error('alzado', t.nombre, err) }
-    }
-
-    const W = Math.max(wB, grid.W, wE)
-    const H = hB + grid.H + hE
+    // (los alzados longitudinales se exportan aparte, desde la pestaña Longitudinal)
+    const W = Math.max(wB, grid.W)
+    const H = hB + grid.H
     const wCm = (W / 14).toFixed(4)
     const hCm = (H / 14).toFixed(4)
     const size = forDxf ? `width="${wCm}cm" height="${hCm}cm"` : `width="${W}" height="${H}"`
@@ -127,9 +113,8 @@ export default function App() {
       `data-real-width-cm="${wCm}" data-real-height-cm="${hCm}" style="font-family:'DM Mono',monospace">` +
       beamsInner +
       (grid.inner ? `<g transform="translate(0,${hB})">${grid.inner}</g>` : '') +
-      (elevInner ? `<g transform="translate(0,${(hB + grid.H).toFixed(1)})">${elevInner}</g>` : '') +
       `</svg>`
-  }, [sections, columns])
+  }, [sections.length, columns])
 
   const fileName = projectName.trim()
     ? `secciones-${projectName.trim().replace(/\s+/g, '-')}`
@@ -313,7 +298,7 @@ export default function App() {
         <ColumnsView />
       </div>
       <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'longitudinal' ? 'flex' : 'none', flexDirection: 'column' }}>
-        <LongitudinalView />
+        <LongitudinalView dxfScale={dxfScale} projectName={projectName} />
       </div>
       <div className="flex-1 overflow-hidden" style={{ display: mainTab === 'bdglobal' ? 'flex' : 'none', flexDirection: 'column' }}>
         <BDGlobalView />

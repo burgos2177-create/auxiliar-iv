@@ -2,7 +2,8 @@ import { useMemo, useRef, useState, useEffect } from 'react'
 import useBeamStore from '../store/useBeamStore'
 import { parseRamStations, looksLikeStations, analyzeGroup, optimizeBase, applyBase, unitLabel } from '../core/longitudinal'
 import { parseNodeXlsx, parseNodeText, parseMemberGeometry, memberLengths, chainMembers, sectionMismatches } from '../core/geometry'
-import { elevationSvg, diagramSvg } from '../core/longitudinalSvg'
+import { elevationSvg, diagramSvg, elevationsGridSvg } from '../core/longitudinalSvg'
+import { svgToDxf } from '../core/svgToDxf'
 import { parseRamEnvelope } from '../core/ramParser'
 
 const fmt = (v, d = 2) => (v === null || v === undefined || !isFinite(v) ? '—' : Number(v).toFixed(d))
@@ -32,7 +33,7 @@ const barsTxt = (bars, cal) => bars.length ? bars.map((b) => `${b.k}#${cal} L=${
  * estaciones de todos sus miembros. Bastones sólo donde y en quien hacen
  * falta, patrones para dibujar pocos detalles, y acero total vs uniforme.
  */
-export default function LongitudinalView() {
+export default function LongitudinalView({ dxfScale = 1, projectName = '' }) {
   const form = useBeamStore((s) => s.form)
   const sections = useBeamStore((s) => s.sections)
   const selectedIdx = useBeamStore((s) => s.selectedIdx)
@@ -48,6 +49,7 @@ export default function LongitudinalView() {
   const [view, setView] = useState('tabla') // tabla | patrones
   const [showOpt, setShowOpt] = useState(false)
   const [Ltxt, setLtxt] = useState('')
+  const [zoom, setZoom] = useState('fit') // fit | 1 | 2  (visor del alzado)
 
   const perfil = form.perfil
   useEffect(() => { setLtxt(perfil?.L ? String(perfil.L) : '') }, [perfil?.L, selectedIdx])
@@ -104,6 +106,33 @@ export default function LongitudinalView() {
   }
 
   const patchPerfil = (p) => setPerfil({ ...perfil, ...p })
+
+  // ── DXF de alzados (aparte del DXF de secciones de la barra) ──
+  function download(content, filename, mime = 'text/plain') {
+    const blob = new Blob([content], { type: mime })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+  function exportElevations(scope) {
+    const list = scope === 'all' ? sections.filter((t) => t.perfil?.members?.length) : [form]
+    let inner = '', W = 0, H = 0, n = 0
+    for (const t of list) {
+      if (!t.perfil?.members?.length) continue
+      let g = null
+      try { g = t === form && group ? group : analyzeGroup(t, t.perfil) } catch { continue }
+      if (!g || !g.results.some((r) => r.L > 0)) continue
+      const e = elevationsGridSvg(t, g, 14)
+      inner += `<g transform="translate(0,${H.toFixed(1)})">${e.inner}</g>`
+      H += e.H + 40; W = Math.max(W, e.W); n += g.patterns.length
+    }
+    if (!inner) { setMsg('No hay alzados que exportar: carga el reporte por estaciones y la longitud (o la geometría).'); return }
+    const wCm = (W / 14).toFixed(4), hCm = (H / 14).toFixed(4)
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${wCm}cm" height="${hCm}cm" data-real-width-cm="${wCm}" data-real-height-cm="${hCm}" style="font-family:'DM Mono',monospace">${inner}</svg>`
+    const base = (projectName.trim() ? `alzados-${projectName.trim().replace(/\s+/g, '-')}` : 'alzados') + (scope === 'all' ? '' : `-${(form.nombre || 'trabe').replace(/\s+/g, '-')}`)
+    download(svgToDxf(svg, { scaleFactor: dxfScale }), `${base}.dxf`, 'application/dxf')
+    setMsg(`DXF de alzados generado: ${n} patrón(es) de ${list.length} trabe(s), a escala real (1 unidad = 1 cm${dxfScale !== 1 ? `, factor ${dxfScale}` : ''}).`)
+  }
 
   // Geometría: reporte de miembros (NJ, NK, sección) + coordenadas de nudos → L por miembro y elementos
   async function onGeomFiles(e) {
@@ -276,6 +305,14 @@ export default function LongitudinalView() {
               <button className="btn btn-secondary" style={{ fontSize: 10.5 }} onClick={() => setShowOpt((v) => !v)}>
                 {showOpt ? 'Ocultar optimizador' : '⚙ Optimizar armado corrido (mínimo acero)'}
               </button>
+              <button className="btn btn-export" style={{ fontSize: 10.5 }} onClick={() => exportElevations('one')} data-testid="dxf-long-one"
+                title="DXF con los alzados por patrón de esta trabe (independiente del DXF de secciones de la barra)">
+                ⬇ DXF alzados · {form.nombre}
+              </button>
+              <button className="btn btn-export" style={{ fontSize: 10.5 }} onClick={() => exportElevations('all')} data-testid="dxf-long-all"
+                title="DXF con los alzados de todas las trabes que tengan cargado el reporte por estaciones">
+                ⬇ DXF alzados · todas ({sections.filter((t) => t.perfil?.members?.length).length})
+              </button>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                 {[['tabla', 'Miembros'], ['patrones', `Patrones (${group.patterns.length})`]].map(([id, lbl]) => (
                   <button key={id} onClick={() => setView(id)} className="btn" style={{ fontSize: 11, padding: '4px 12px', background: view === id ? 'var(--color-accent)' : 'var(--color-panel)', color: view === id ? '#fff' : 'var(--color-tx2)', border: '1px solid var(--color-border)' }}>{lbl}</button>
@@ -396,10 +433,20 @@ export default function LongitudinalView() {
                   </div>
                 )}
                 <div dangerouslySetInnerHTML={{ __html: diagramSvg(selected, group.caps, { width: 760 }) }} />
-                <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 8, padding: 6 }}
-                  dangerouslySetInnerHTML={{ __html: elevationSvg(form, selected, { scale: selected.L > 7 ? 3.2 : 4.2, title: `${form.nombre} · ${unitLabel(selected)}${view === 'patrones' ? ` · patrón ${group.patterns.find((p) => p.signature === selected.signature)?.label || ''}` : ''}` }).svg.replace('<svg ', selected.L > 7 ? '<svg style="height:auto" ' : '<svg style="max-width:100%;height:auto" ') }} />
+                <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--color-border)', fontSize: 11 }}>
+                    <b>Alzado</b> <span style={{ color: 'var(--color-tx3)', fontFamily: 'var(--font-mono)' }}>{unitLabel(selected)} · L = {fmt(selected.L)} m</span>
+                    <span style={{ marginLeft: 'auto', color: 'var(--color-tx3)' }}>zoom</span>
+                    {[['fit', 'ajustar'], ['1', '1×'], ['2', '2×']].map(([z, lbl]) => (
+                      <button key={z} className="btn" onClick={() => setZoom(z)} style={{ fontSize: 10, padding: '2px 8px', background: zoom === z ? 'var(--color-accent)' : 'var(--color-panel)', color: zoom === z ? '#fff' : 'var(--color-tx2)', border: '1px solid var(--color-border)' }}>{lbl}</button>
+                    ))}
+                    <span style={{ color: 'var(--color-tx3)', fontSize: 10 }}>{zoom === 'fit' ? '' : '(desplázate horizontalmente)'}</span>
+                  </div>
+                  <div style={{ overflowX: 'auto', overflowY: 'hidden', padding: 6 }}
+                    dangerouslySetInnerHTML={{ __html: elevationSvg(form, selected, { scale: zoom === '2' ? 8 : 5, title: `${form.nombre} · ${unitLabel(selected)}${view === 'patrones' ? ` · patrón ${group.patterns.find((p) => p.signature === selected.signature)?.label || ''}` : ''}` }).svg.replace('<svg ', zoom === 'fit' ? '<svg style="max-width:100%;height:auto;display:block" ' : '<svg style="height:auto;display:block" ') }} />
+                </div>
                 <div style={{ fontSize: 10, color: 'var(--color-tx3)' }}>
-                  La curva gruesa es la envolvente de resistencia real: sube en rampa a lo largo de Ld donde empieza el bastón (el acero se va desarrollando) y baja donde termina; si en la rampa el momento la rebasara, el bastón se alarga solo hasta cubrirlo. Bastón: desde el punto donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; longitudes a múltiplos de 5 cm, medidas desde el apoyo I. Los que llegan a un extremo se anclan en él (gancho). Cortante por claros: cuartos extremos con @{form.sepLcuarto}, centro con @{form.sepRest}; los apoyos interiores (triángulos) se detectan donde el cortante salta y cambia de signo. El alzado va al DXF a escala real junto con las secciones.
+                  La curva gruesa es la envolvente de resistencia real: sube en rampa a lo largo de Ld donde empieza el bastón (el acero se va desarrollando) y baja donde termina; si en la rampa el momento la rebasara, el bastón se alarga solo hasta cubrirlo. Bastón: desde el punto donde Mu rebasa el MR de las corridas, prolongado ≥ máx(d, 12db) y con Ld desde el pico; longitudes a múltiplos de 5 cm, medidas desde el apoyo I. Los que llegan a un extremo se anclan en él (gancho). Cortante por claros: cuartos extremos con @{form.sepLcuarto}, centro con @{form.sepRest}; los apoyos interiores (triángulos) se detectan donde el cortante salta y cambia de signo. Los alzados salen en su propio DXF (botones ⬇ DXF alzados), aparte del DXF de secciones de la barra.
                 </div>
               </>
             )}
